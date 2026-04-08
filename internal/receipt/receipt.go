@@ -11,6 +11,10 @@ import (
 	"github.com/go-git/go-billy/v5"
 )
 
+// stateDir is the directory where receipt files are stored, relative to the working directory.
+// Kept alongside the version cache in .dep-fetch/ to keep bin_dir clean.
+const stateDir = ".dep-fetch"
+
 // Receipt holds the recorded state of an installed binary.
 type Receipt struct {
 	Version  string // e.g. v1.9.14
@@ -18,12 +22,12 @@ type Receipt struct {
 }
 
 func fileName(name string) string {
-	return "." + name + ".receipt"
+	return name + ".receipt"
 }
 
 // Read returns the stored receipt for a tool, or a zero Receipt if not present or malformed.
-func Read(fs billy.Filesystem, binDir, name string) (Receipt, error) {
-	path := filepath.Join(binDir, fileName(name))
+func Read(fs billy.Filesystem, name string) (Receipt, error) {
+	path := filepath.Join(stateDir, fileName(name))
 	f, err := fs.Open(path)
 	if err != nil {
 		return Receipt{}, nil
@@ -46,8 +50,12 @@ func Read(fs billy.Filesystem, binDir, name string) (Receipt, error) {
 }
 
 // Write atomically writes a receipt recording the installed version and binary checksum.
-func Write(fs billy.Filesystem, binDir, name, version, checksum string) error {
-	tmp, err := fs.TempFile(binDir, "."+name+".receipt.tmp")
+func Write(fs billy.Filesystem, name, version, checksum string) error {
+	if err := fs.MkdirAll(stateDir, 0755); err != nil {
+		return fmt.Errorf("creating state dir: %w", err)
+	}
+
+	tmp, err := fs.TempFile(stateDir, name+".receipt.tmp")
 	if err != nil {
 		return fmt.Errorf("creating receipt temp file for %s: %w", name, err)
 	}
@@ -60,7 +68,7 @@ func Write(fs billy.Filesystem, binDir, name, version, checksum string) error {
 		return fmt.Errorf("writing receipt for %s: %w", name, err)
 	}
 
-	dest := filepath.Join(binDir, fileName(name))
+	dest := filepath.Join(stateDir, fileName(name))
 	if err := fs.Rename(tmpName, dest); err != nil {
 		_ = fs.Remove(tmpName)
 		return fmt.Errorf("installing receipt for %s: %w", name, err)
@@ -75,7 +83,7 @@ func Write(fs billy.Filesystem, binDir, name, version, checksum string) error {
 // Returns (false, error) when the version matches but the binary checksum does not — this
 // indicates corruption or tampering and must be treated as a hard error by the caller.
 func Verify(fs billy.Filesystem, binDir, name, wantVersion string) (bool, error) {
-	r, err := Read(fs, binDir, name)
+	r, err := Read(fs, name)
 	if err != nil {
 		return false, err
 	}
@@ -112,11 +120,11 @@ func NewManager(fs billy.Filesystem, binDir string) *Manager {
 }
 
 func (m *Manager) Read(name string) (Receipt, error) {
-	return Read(m.fs, m.binDir, name)
+	return Read(m.fs, name)
 }
 
 func (m *Manager) Write(name, version, checksum string) error {
-	return Write(m.fs, m.binDir, name, version, checksum)
+	return Write(m.fs, name, version, checksum)
 }
 
 func (m *Manager) Verify(name, wantVersion string) (bool, error) {
