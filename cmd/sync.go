@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/spf13/cobra"
@@ -30,8 +29,7 @@ Pass one or more tool names to sync only those tools:
 
 		fmt.Println("Syncing tools...")
 		if err := fetch.Sync(fs, cfg, resolvedBinDir, args); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
+			return err
 		}
 		fmt.Println("Done.")
 		return nil

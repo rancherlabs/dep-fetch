@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/go-git/go-billy/v5/osfs"
 	"github.com/spf13/cobra"
@@ -29,8 +28,7 @@ Exits non-zero if any verification fails.`,
 
 		fmt.Println("Verifying tools...")
 		if err := fetch.Verify(fs, cfg, resolvedBinDir); err != nil {
-			fmt.Fprintln(os.Stderr, "error:", err)
-			os.Exit(1)
+			return err
 		}
 		fmt.Println("Done.")
 		return nil

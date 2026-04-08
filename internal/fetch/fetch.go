@@ -42,9 +42,12 @@ func (s ToolStatus) IsUpToDate() bool {
 
 // Sync fetches and verifies all tools (or only those named in filter).
 func Sync(fs billy.Filesystem, cfg *config.Config, binDir string, filter []string) error {
-	tools := selectTools(cfg.Tools, filter)
+	tools, err := selectTools(cfg.Tools, filter)
+	if err != nil {
+		return err
+	}
 	for _, t := range tools {
-		if err := syncTool(fs, cfg, binDir, t); err != nil {
+		if err := syncTool(fs, binDir, t); err != nil {
 			return fmt.Errorf("sync %s: %w", t.Name, err)
 		}
 	}
@@ -66,7 +69,7 @@ func Verify(fs billy.Filesystem, cfg *config.Config, binDir string) error {
 		}
 		if !ok {
 			fmt.Printf("  %s: receipt invalid or missing — syncing\n", t.Name)
-			if err := syncTool(fs, cfg, binDir, t); err != nil {
+			if err := syncTool(fs, binDir, t); err != nil {
 				return fmt.Errorf("verify %s: %w", t.Name, err)
 			}
 			continue
@@ -107,7 +110,7 @@ func List(fs billy.Filesystem, cfg *config.Config, binDir string) ([]ToolStatus,
 }
 
 // syncTool fetches, verifies, and installs a single tool.
-func syncTool(fs billy.Filesystem, cfg *config.Config, binDir string, t config.Tool) error {
+func syncTool(fs billy.Filesystem, binDir string, t config.Tool) error {
 	goos, goarch := platform.Current()
 	receipts := receipt.NewManager(fs, binDir)
 
@@ -146,6 +149,8 @@ func syncTool(fs billy.Filesystem, cfg *config.Config, binDir string, t config.T
 	case config.ModeReleaseChecksums:
 		checksumAsset := release.Render(t.ChecksumTemplate(), vars)
 		binChecksum, err = syncReleaseChecksums(fs, binDir, t, version, binTmpl, extractPath, checksumAsset)
+	default:
+		return fmt.Errorf("unknown mode %q for tool %s", t.Mode, t.Name)
 	}
 	if err != nil {
 		return err
@@ -341,9 +346,9 @@ func resolveVersion(fs billy.Filesystem, t config.Tool) (string, error) {
 	return v, nil
 }
 
-func selectTools(tools []config.Tool, filter []string) []config.Tool {
+func selectTools(tools []config.Tool, filter []string) ([]config.Tool, error) {
 	if len(filter) == 0 {
-		return tools
+		return tools, nil
 	}
 	names := make(map[string]bool, len(filter))
 	for _, n := range filter {
@@ -353,7 +358,15 @@ func selectTools(tools []config.Tool, filter []string) []config.Tool {
 	for _, t := range tools {
 		if names[t.Name] {
 			out = append(out, t)
+			delete(names, t.Name)
 		}
 	}
-	return out
+	if len(names) > 0 {
+		unknown := make([]string, 0, len(names))
+		for n := range names {
+			unknown = append(unknown, n)
+		}
+		return nil, fmt.Errorf("unknown tool(s): %s", strings.Join(unknown, ", "))
+	}
+	return out, nil
 }
