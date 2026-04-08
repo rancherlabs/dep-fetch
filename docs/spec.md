@@ -15,7 +15,7 @@ dep-fetch list               # show current state of all declared tools
 dep-fetch verify             # verify checksums of already-downloaded binaries without re-fetching
 ```
 
-`dep-fetch verify` checks the SHA-256 of each binary against its declared or release-provided checksum. If a binary is missing entirely, it is downloaded and verified (i.e. `verify` falls back to sync semantics for absent tools). If a download fails, the command exits non-zero.
+`dep-fetch verify` checks the SHA-256 of each binary against the checksum recorded in its receipt at install time. Using the receipt checksum (rather than the originally declared or release-provided checksum) is intentionally more defensive: for archive assets the receipt stores the extracted binary's checksum, which differs from the asset checksum. This means `verify` catches corruption or replacement of the extracted binary even when the original asset checksum is no longer available. If a binary is missing entirely, it is downloaded and verified (i.e. `verify` falls back to sync semantics for absent tools). If a download fails, the command exits non-zero.
 
 Config file resolution order:
 1. `--config <path>` flag
@@ -65,7 +65,8 @@ tools:
       linux/amd64:  "ghi789...64char-hex..."  # renovate-local: golangci-lint=v1.57.2
       linux/arm64:  "jkl012...64char-hex..."  # renovate-local: golangci-lint=v1.57.2
     release:
-      binary_template: "golangci-lint-{version}-{os}-{arch}/golangci-lint"
+      binary_template: "golangci-lint-{version}-{os}-{arch}.tar.gz"
+      extract: "golangci-lint-{version}-{os}-{arch}/golangci-lint"
 ```
 
 ### Field Reference
@@ -76,9 +77,10 @@ tools:
 | `version` | yes | — | Release tag (e.g. `v1.2.3`) or `"latest"`. `"latest"` is only valid with `mode: release-checksums` on an allowlisted internal tool repo — it is a hard error in all other cases. |
 | `source` | yes | — | GitHub `owner/repo` |
 | `mode` | yes | — | `release-checksums` or `pinned` |
-| `release.binary_template` | no | `{name}_{os}_{arch}` | Release asset filename pattern |
+| `release.binary_template` | no | `{name}_{os}_{arch}` | Release asset filename to download (include extension, e.g. `.tar.gz`) |
 | `release.checksum_template` | no | `checksums.txt` | Checksum file asset name (`release-checksums` mode only) |
-| `checksums` | required for `pinned` | — | Map of `{os}/{arch}` to SHA-256 hex digest |
+| `release.extract` | no | — | Path within archive to use as the binary. Required when `binary_template` is an archive. Omit for direct binary assets. |
+| `checksums` | required for `pinned` | — | Map of `{os}/{arch}` to SHA-256 hex digest of the **downloaded asset** (archive or binary) |
 
 ### Template Variables
 
@@ -120,12 +122,12 @@ Downloads both the binary asset and the release's checksum file, then verifies t
 
 Flow:
 1. Resolve version (cache "latest" for 24h; pinned versions skip the cache)
-2. Check if `bin_dir/{name}` already matches desired version via sidecar — skip if so
+2. Check receipt in `.dep-fetch/` — skip if version matches and binary checksum is intact
 3. Download `{binary_template}` asset from the GitHub release
 4. Download `{checksum_template}` asset from the same release
-5. Verify SHA-256 of downloaded binary against the checksum file entry
-6. Move binary to `bin_dir/{name}`, set executable bit; write sidecar
-7. Clean up checksum file
+5. Verify SHA-256 of downloaded asset against the checksum file entry
+6. Extract binary if `release.extract` is set (archive assets); decompress if `.gz`
+7. Move binary to `bin_dir/{name}`, set executable bit; write receipt to `.dep-fetch/`
 
 ### `pinned`
 
@@ -134,11 +136,12 @@ Checksums for each platform are declared directly in the config. No checksum fil
 This mode works for **any** `source` — no allowlist check is performed. `version: latest` is not valid in this mode — hard error at parse time.
 
 Flow:
-1. Check if `bin_dir/{name}` already matches desired version via sidecar — skip if so
+1. Check receipt in `.dep-fetch/` — skip if version matches and binary checksum is intact
 2. Look up `{os}/{arch}` in `checksums` map — error if missing
 3. Download `{binary_template}` asset
-4. Verify SHA-256 against pinned value
-5. Move binary to `bin_dir/{name}`, set executable bit; write sidecar
+4. Verify SHA-256 of downloaded asset against pinned value
+5. Extract binary if `release.extract` is set (archive assets); decompress if `.gz`
+6. Move binary to `bin_dir/{name}`, set executable bit; write receipt to `.dep-fetch/`
 
 ---
 
@@ -148,9 +151,9 @@ Flow:
 
 Stores the last resolved "latest" tag with a timestamp. TTL: 24 hours. Add `.dep-fetch/` to `.gitignore`. Set `DEP_FETCH_SKIP_CACHE=1` to bypass it.
 
-### Binary presence check
+### Receipt check (`.dep-fetch/{name}.receipt`)
 
-Before downloading, the tool reads a sidecar file named `.{name}.version` in `bin_dir/` to compare the installed version. If they match, the download is skipped. The sidecar approach is preferred over `--version` parsing since output format varies wildly across tools. Internal file format and atomic write behaviour are described in [implementation.md](./implementation.md).
+Before downloading, the tool reads a receipt file from `.dep-fetch/` recording the installed version and the SHA-256 of the binary at install time. A tool is considered up-to-date only when both the version matches **and** the binary on disk still hashes to the recorded checksum. This detects corruption or replacement of the binary independently of the original download verification. Internal file format and atomic write behaviour are described in [implementation.md](./implementation.md).
 
 ---
 
@@ -164,9 +167,9 @@ All errors exit non-zero. No partial state is left in `bin_dir/`.
 | `version: latest` with `mode: pinned` | Hard error at config parse time |
 | `version: latest` with `mode: release-checksums` on non-tool repo | Hard error at config parse time |
 | `checksums` missing an entry for current platform | Hard error with list of available platforms |
-| HTTP non-200 on binary download | Hard error, partial file removed |
-| HTTP non-200 on checksum download | Hard error, partial binary removed |
-| Checksum mismatch | Hard error, all files removed, expected vs actual printed |
+| HTTP non-200 on binary download | Hard error; nothing written to `bin_dir/` (download is buffered in memory) |
+| HTTP non-200 on checksum download | Hard error; nothing written to `bin_dir/` |
+| Checksum mismatch | Hard error; nothing written to `bin_dir/`, expected vs actual printed |
 | Checksum file has no entry for the binary name | Hard error (do not fall through) |
 | Binary missing during `verify` | Download and verify (sync semantics); hard error if download fails |
 

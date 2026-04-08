@@ -47,12 +47,19 @@ Once a stable release exists and `rancher/dep-fetch` is in its own compiled-in a
 
 ```go
 // allowlist.go
-var releaseChecksumAllowlist = []string{
-    "rancher/dep-fetch",              // self-hosting
-    "rancher/charts-build-scripts",   // latest permitted
-    "rancher/ob-charts-tool",         // latest permitted
+type allowlistEntry struct {
+    source        string
+    latestAllowed bool
+}
+
+var releaseChecksumAllowlist = []allowlistEntry{
+    {"rancher/dep-fetch", false},             // self-hosting; pin an explicit tag
+    {"rancher/charts-build-scripts", true},   // internal tool repo; latest permitted
+    {"rancher/ob-charts-tool", true},         // internal tool repo; latest permitted
 }
 ```
+
+`latestAllowed: false` on `rancher/dep-fetch` is intentional — even though it is on the allowlist for self-hosting, it should always be pinned to an explicit version in `.bin-deps.yaml`. This struct layout makes the two subsets (release-checksums-allowed, latest-allowed) structurally inseparable: adding a repo to the allowlist requires explicitly declaring whether `latest` is permitted, preventing the two sets from drifting independently.
 
 ---
 
@@ -71,17 +78,22 @@ v0.18.0
 
 The `.dep-fetch/` directory should be in `.gitignore`. If the file is missing, malformed, or older than 24 hours, the tag is re-resolved from the GitHub API and the file is rewritten.
 
-### Sidecar version file
+### Receipt file
 
-Location: `{bin_dir}/.{name}.version`
+Location: `.dep-fetch/{name}.receipt` (relative to working directory, alongside the version cache).
 
-Single-line text file containing the installed version tag:
+Two-line text file — version tag on line 1, SHA-256 hex of the installed binary on line 2:
 
 ```
 v0.3.1
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 ```
 
-Written atomically on successful install (write to a temp file in `bin_dir/`, then `os.Rename` into place). The binary itself is installed the same way — temp file download, checksum verification, then rename. This means a failed or interrupted install never leaves a partial binary or a sidecar that disagrees with the binary.
+The checksum recorded in the receipt is the SHA-256 of the **extracted binary** placed in `bin_dir/`, not the downloaded asset. For archive assets, these differ intentionally: the asset checksum is verified at download time, and the binary checksum is stored for future receipt checks.
+
+Written atomically on successful install: a temp file is written in `.dep-fetch/`, then renamed into place. The binary itself is installed the same way — downloaded into a temp file, verified, extracted if needed, then renamed into `bin_dir/`. A failed or interrupted install never leaves a partial binary or a receipt that disagrees with the binary on disk.
+
+A tool is considered up-to-date when both the receipt version matches the configured version **and** the binary currently on disk hashes to the recorded checksum. This detects corruption or replacement of the binary independently of the original download verification.
 
 ---
 
@@ -94,7 +106,7 @@ Written atomically on successful install (write to a temp file in `bin_dir/`, th
 
 The atomic install flow (temp file → rename) is the safety net: if two invocations somehow ran simultaneously, the worst case is a redundant download. A partial binary landing in `bin_dir` is not possible.
 
-Concurrent invocations against a *shared* `bin_dir` (e.g. a mounted cache volume with multiple jobs writing to the same path) are not supported and could produce inconsistent sidecar state.
+Concurrent invocations against a *shared* `bin_dir` (e.g. a mounted cache volume with multiple jobs writing to the same path) are not supported and could produce inconsistent receipt state.
 
 ---
 
