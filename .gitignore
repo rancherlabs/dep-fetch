@@ -1,0 +1,20 @@
+# Build output
+bin/
+dist/
+
+# dep-fetch local state (cache, etag, latest metadata)
+.dep-fetch/
+
+# Go toolchain
+*.test
+*.out
+coverage.html
+
+# macOS
+.DS_Store
+
+# JetBrains IDEs
+.idea/
+
+# VS Code
+.vscode/
