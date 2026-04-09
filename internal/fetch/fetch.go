@@ -136,6 +136,7 @@ func syncTool(fs billy.Filesystem, binDir string, t config.Tool) error {
 		Name:    t.Name,
 		OS:      goos,
 		Arch:    goarch,
+		ArchAlt: platform.AltArch(goarch),
 		Version: version,
 	}
 

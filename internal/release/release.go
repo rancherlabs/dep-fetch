@@ -11,6 +11,7 @@ type Vars struct {
 	Name    string
 	OS      string
 	Arch    string
+	ArchAlt string // alternative arch name, e.g. x86_64 for amd64
 	Version string // e.g. v0.18.0
 }
 
@@ -25,6 +26,7 @@ func Render(pattern string, v Vars) string {
 		"{name}", v.Name,
 		"{os}", v.OS,
 		"{arch}", v.Arch,
+		"{arch_alt}", v.ArchAlt,
 		"{version}", v.Version,
 		"{version_no_v}", v.VersionWithoutV(),
 	)
