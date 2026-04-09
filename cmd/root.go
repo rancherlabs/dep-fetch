@@ -4,11 +4,14 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"github.com/mallardduck/dep-fetch/internal/config"
 )
 
 var (
 	configFile string
 	binDir     string
+	skipCache  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -19,6 +22,12 @@ var rootCmd = &cobra.Command{
 It replaces ad-hoc per-tool fetch scripts with a single declarative config
 (.bin-deps.yaml), checksum verification on every download, local caching,
 and a Renovate-compatible schema so versions stay current automatically.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if skipCache {
+			return os.Setenv(config.EnvSkipCache, "1")
+		}
+		return nil
+	},
 }
 
 func Execute() {
@@ -30,4 +39,5 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default: .bin-deps.yaml, or $DEP_FETCH_CONFIG)")
 	rootCmd.PersistentFlags().StringVar(&binDir, "bin-dir", "", "output directory for binaries (default: ./bin, or $DEP_FETCH_BIN_DIR)")
+	rootCmd.PersistentFlags().BoolVar(&skipCache, "skip-cache", false, "bypass the version cache (equivalent to $DEP_FETCH_SKIP_CACHE=1)")
 }
