@@ -106,6 +106,22 @@ func TestDownloadAsset_HTTP500(t *testing.T) {
 	}
 }
 
+func TestDownloadAsset_CopyError(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("data"))
+	}))
+	defer ts.Close()
+
+	err := DownloadAsset(ts.URL+"/asset", &failWriter{})
+	if err == nil {
+		t.Error("DownloadAsset() expected error for write failure, got nil")
+	}
+}
+
+type failWriter struct{}
+
+func (f *failWriter) Write([]byte) (int, error) { return 0, fmt.Errorf("write failed") }
+
 func TestGitHubTokenHeader(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "test-token-123")
 
