@@ -108,7 +108,7 @@ func UpdateToolVersion(fs billy.Filesystem, cfg *Config, toolName, version strin
 		return err
 	}
 	data, err := io.ReadAll(f)
-	f.Close() //nolint:errcheck // read-only; close error is not actionable
+	f.Close() //nolint:errcheck,gosec // read-only; close error is not actionable
 	if err != nil {
 		return err
 	}
