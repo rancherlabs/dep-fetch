@@ -43,7 +43,7 @@ func TestToolBinaryTemplate(t *testing.T) {
 		}
 	})
 	t.Run("custom template", func(t *testing.T) {
-		tool := Tool{Release: &ReleaseConfig{BinaryTemplate: "{name}_{version}_{os}"}}
+		tool := Tool{Release: &ReleaseConfig{DownloadTemplate: "{name}_{version}_{os}"}}
 		if got := tool.BinaryTemplate(); got != "{name}_{version}_{os}" {
 			t.Errorf("BinaryTemplate() = %q, want custom", got)
 		}
@@ -76,6 +76,37 @@ func TestToolExtractPath(t *testing.T) {
 		tool := Tool{Release: &ReleaseConfig{Extract: "bin/mytool"}}
 		if got := tool.ExtractPath(); got != "bin/mytool" {
 			t.Errorf("ExtractPath() = %q, want %q", got, "bin/mytool")
+		}
+	})
+}
+
+func TestToolExt(t *testing.T) {
+	extensions := map[string]string{
+		"linux":   "tar.gz",
+		"darwin":  "zip",
+		"windows": "zip",
+	}
+	tool := Tool{Release: &ReleaseConfig{Extensions: extensions}}
+
+	tests := []struct {
+		goos string
+		want string
+	}{
+		{"linux", "tar.gz"},
+		{"darwin", "zip"},
+		{"windows", "zip"},
+		{"freebsd", ""},
+	}
+	for _, tt := range tests {
+		if got := tool.Ext(tt.goos); got != tt.want {
+			t.Errorf("Ext(%q) = %q, want %q", tt.goos, got, tt.want)
+		}
+	}
+
+	t.Run("nil release returns empty", func(t *testing.T) {
+		empty := Tool{}
+		if got := empty.Ext("linux"); got != "" {
+			t.Errorf("Ext(linux) on nil release = %q, want empty", got)
 		}
 	})
 }

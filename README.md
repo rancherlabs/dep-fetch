@@ -55,7 +55,7 @@ tools:
       darwin/amd64: "789abc..."
       darwin/arm64: "fed321..."
     release:
-      binary_template: "golangci-lint-{version|trimprefix:v}-{os}-{arch}.tar.gz"
+      download_template: "golangci-lint-{version|trimprefix:v}-{os}-{arch}.tar.gz"
       extract: "golangci-lint-{version|trimprefix:v}-{os}-{arch}/golangci-lint"
 ```
 
@@ -69,6 +69,27 @@ tools:
     version: latest
 ```
 
+Use `release.extensions` with the `{ext}` template variable when different platforms ship different archive formats:
+
+```yaml
+tools:
+  - name: mytool
+    mode: pinned
+    source: owner/mytool
+    version: v1.0.0
+    checksums:
+      linux/amd64:  "abc123..."
+      darwin/amd64: "def456..."
+    release:
+      download_template: "mytool_{version}_{os}_{arch}.{ext|default:tar.gz}"
+      extract: "mytool"
+      extensions:
+        linux: "tar.gz"
+        darwin: "zip"
+```
+
+`{ext}` resolves to the value for the current OS. The `default:` modifier supplies a fallback for any OS not listed in `extensions`.
+
 ### Template variables
 
 Asset name templates support the following variables and modifiers:
@@ -79,6 +100,7 @@ Asset name templates support the following variables and modifiers:
 | `{os}` | Operating system | `linux`, `darwin` |
 | `{arch}` | Architecture | `amd64`, `arm64` |
 | `{version}` | Full version tag | `v2.11.4` |
+| `{ext}` | Per-OS file extension from `release.extensions` | `tar.gz`, `zip` |
 
 Modifiers can be applied and chained with additional `|` separators (applied left to right):
 
@@ -90,6 +112,7 @@ Modifiers can be applied and chained with additional `|` separators (applied lef
 | `trimprefix:X` | Remove leading string X | `{version\|trimprefix:v}` → `2.11.4` |
 | `trimsuffix:X` | Remove trailing string X | `{name\|trimsuffix:-tool}` → `charts-build-scripts` |
 | `replace:FROM=TO` | Replace exact value | `{arch\|replace:amd64=x86_64}` → `x86_64` |
+| `default:X` | Use X if the value is empty | `{ext\|default:tar.gz}` → `tar.gz` |
 
 Chain example: `{version\|trimprefix:v\|trimsuffix:.0}` strips the `v` prefix then the `.0` patch suffix (e.g. `v1.2.0` → `1.2`).
 

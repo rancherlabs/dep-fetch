@@ -50,7 +50,7 @@ tools:
     mode: release-checksums
     # Optional overrides for release artifact naming conventions:
     release:
-      binary_template: "ob-charts-tool_{os}_{arch}"
+      download_template: "ob-charts-tool_{os}_{arch}"
       checksum_template: "ob-charts-tool_{version|trimprefix:v}_checksums.txt"
 
   # pinned mode: version AND per-platform checksums are both managed by Renovate.
@@ -65,8 +65,25 @@ tools:
       linux/amd64:  "ghi789...64char-hex..."  # renovate-local: golangci-lint=v1.57.2
       linux/arm64:  "jkl012...64char-hex..."  # renovate-local: golangci-lint=v1.57.2
     release:
-      binary_template: "golangci-lint-{version}-{os}-{arch}.tar.gz"
+      download_template: "golangci-lint-{version}-{os}-{arch}.tar.gz"
       extract: "golangci-lint-{version}-{os}-{arch}/golangci-lint"
+
+  # pinned mode with per-OS archive formats via {ext}:
+  - name: mytool
+    # renovate: datasource=github-releases depName=owner/mytool
+    version: v1.0.0
+    source: owner/mytool
+    mode: pinned
+    checksums:
+      linux/amd64:  "abc123...64char-hex..."
+      darwin/amd64: "def456...64char-hex..."
+      darwin/arm64: "789abc...64char-hex..."
+    release:
+      download_template: "mytool_{version}_{os}_{arch}.{ext|default:tar.gz}"
+      extract: "mytool"
+      extensions:
+        linux: "tar.gz"
+        darwin: "zip"
 ```
 
 ### Field Reference
@@ -77,9 +94,10 @@ tools:
 | `version` | yes | — | Release tag (e.g. `v1.2.3`) or `"latest"`. `"latest"` is only valid with `mode: release-checksums` on an allowlisted internal tool repo — it is a hard error in all other cases. |
 | `source` | yes | — | GitHub `owner/repo` |
 | `mode` | yes | — | `release-checksums` or `pinned` |
-| `release.binary_template` | no | `{name}_{os}_{arch}` | Release asset filename to download (include extension, e.g. `.tar.gz`) |
+| `release.download_template` | no | `{name}_{os}_{arch}` | Release asset filename to download (include extension, e.g. `.tar.gz`) |
 | `release.checksum_template` | no | `checksums.txt` | Checksum file asset name (`release-checksums` mode only) |
-| `release.extract` | no | — | Path within archive to use as the binary. Required when `binary_template` is an archive. Omit for direct binary assets. |
+| `release.extract` | no | — | Path within archive to use as the binary. Required when `download_template` is an archive. Omit for direct binary assets. |
+| `release.extensions` | no | — | Map of OS name to file extension string (e.g. `linux: tar.gz`). Populates the `{ext}` template variable. |
 | `checksums` | required for `pinned` | — | Map of `{os}/{arch}` to SHA-256 hex digest of the **downloaded asset** (archive or binary) |
 
 ### Template Variables
@@ -90,6 +108,7 @@ tools:
 | `{os}` | `linux`, `darwin` |
 | `{arch}` | `amd64`, `arm64` |
 | `{version}` | `v0.18.0` |
+| `{ext}` | `tar.gz`, `zip` (per-OS value from `release.extensions`) |
 
 ### Template Modifiers
 
@@ -103,6 +122,7 @@ Modifiers transform a variable's value. Apply with `|` after the variable name; 
 | `trimprefix:X` | Remove leading string X | `{version\|trimprefix:v}` → `0.18.0` |
 | `trimsuffix:X` | Remove trailing string X | `{name\|trimsuffix:-tool}` → `charts-build-scripts` |
 | `replace:FROM=TO` | Replace exact value | `{arch\|replace:amd64=x86_64}` → `x86_64` |
+| `default:X` | Use X if the value is empty | `{ext\|default:tar.gz}` → `tar.gz` |
 
 Chain example: `{version|trimprefix:v|trimsuffix:.0}` strips the `v` prefix then the `.0` patch suffix (e.g. `v1.2.0` → `1.2`).
 
@@ -137,7 +157,7 @@ Downloads both the binary asset and the release's checksum file, then verifies t
 Flow:
 1. Resolve version (cache "latest" for 24h; pinned versions skip the cache)
 2. Check receipt in `.dep-fetch/` — skip if version matches and binary checksum is intact
-3. Download `{binary_template}` asset from the GitHub release
+3. Download `{download_template}` asset from the GitHub release
 4. Download `{checksum_template}` asset from the same release
 5. Verify SHA-256 of downloaded asset against the checksum file entry
 6. Extract binary if `release.extract` is set (archive assets); decompress if `.gz`
@@ -152,7 +172,7 @@ This mode works for **any** `source` — no allowlist check is performed. `versi
 Flow:
 1. Check receipt in `.dep-fetch/` — skip if version matches and binary checksum is intact
 2. Look up `{os}/{arch}` in `checksums` map — error if missing
-3. Download `{binary_template}` asset
+3. Download `{download_template}` asset
 4. Verify SHA-256 of downloaded asset against pinned value
 5. Extract binary if `release.extract` is set (archive assets); decompress if `.gz`
 6. Move binary to `bin_dir/{name}`, set executable bit; write receipt to `.dep-fetch/`

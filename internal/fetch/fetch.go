@@ -137,6 +137,7 @@ func syncTool(fs billy.Filesystem, binDir string, t config.Tool) error {
 		OS:      goos,
 		Arch:    goarch,
 		Version: version,
+		Ext:     t.Ext(goos),
 	}
 
 	binTmpl := release.Render(t.BinaryTemplate(), vars)

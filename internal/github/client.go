@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 )
 
 var apiBase = "https://api.github.com"
@@ -57,6 +58,11 @@ func doGet(url, accept string) (io.ReadCloser, error) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
+	if !strings.HasSuffix(req.URL.Host, "github.com") {
+		return nil, fmt.Errorf("unauthorized host: %s", req.URL.Host)
+	}
+
+	// #nosec G704 - Host is validated against github.com domain suffix
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s: %w", url, err)
