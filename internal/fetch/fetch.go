@@ -181,7 +181,7 @@ func syncReleaseChecksums(fs billy.Filesystem, binDir string, t config.Tool, ver
 		return "", fmt.Errorf("downloading checksum file: %w", err)
 	}
 
-	expected, err := ParseChecksumFile(checksumBuf.Bytes(), assetName)
+	expected, err := parseChecksumFile(checksumBuf.Bytes(), assetName)
 	if err != nil {
 		return "", err
 	}
@@ -219,7 +219,7 @@ func downloadAndInstall(fs billy.Filesystem, binDir, name, owner, repo, version,
 
 	// Compute the binary's own SHA-256 — this is what goes into the receipt.
 	// For archives this will differ from the asset checksum above, which is expected.
-	binChecksum := Sha256Hex(binData)
+	binChecksum := sha256Hex(binData)
 
 	// Atomically write to bin_dir.
 	tmp, err := fs.TempFile(binDir, name+".tmp")
