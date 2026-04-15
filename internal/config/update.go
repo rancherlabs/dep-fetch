@@ -13,8 +13,95 @@ import (
 
 var renovateLocalRe = regexp.MustCompile(`(renovate-local:\s*[a-zA-Z0-9_-]+)=.*`)
 
-// UpdateToolVersion rewrites the config file in-place, updating the named tool's version
-// and checksums while preserving all other formatting and comments.
+// scalarLocation records where a scalar value sits in the raw file.
+type scalarLocation struct {
+	line  int        // 1-indexed, matches yaml.Node.Line
+	value string     // unquoted value from the AST
+	style yaml.Style // original quoting style
+}
+
+// toolLocations holds the file positions of a tool's mutable fields.
+// This is the only type that depends on the YAML library — swapping to a
+// go-yaml AST approach means replacing locateToolFields and this struct.
+type toolLocations struct {
+	version   scalarLocation
+	checksums map[string]scalarLocation // platform key -> checksum value location
+}
+
+// locateToolFields parses data and returns the file locations of the named
+// tool's version and checksum fields. This is the sole YAML-library-specific
+// function; everything that follows is plain string manipulation.
+func locateToolFields(data []byte, toolName string) (*toolLocations, error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return nil, err
+	}
+
+	if doc.Kind != yaml.DocumentNode || len(doc.Content) == 0 {
+		return nil, fmt.Errorf("invalid YAML document")
+	}
+
+	root := doc.Content[0]
+	var toolsNode *yaml.Node
+	for i := 0; i < len(root.Content)-1; i += 2 {
+		if root.Content[i].Value == "tools" {
+			toolsNode = root.Content[i+1]
+			break
+		}
+	}
+	if toolsNode == nil || toolsNode.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("could not find tools sequence in config")
+	}
+
+	for _, toolNode := range toolsNode.Content {
+		var nameNode, versionNode, checksumsNode *yaml.Node
+		for i := 0; i < len(toolNode.Content)-1; i += 2 {
+			switch toolNode.Content[i].Value {
+			case "name":
+				nameNode = toolNode.Content[i+1]
+			case "version":
+				versionNode = toolNode.Content[i+1]
+			case "checksums":
+				checksumsNode = toolNode.Content[i+1]
+			}
+		}
+
+		if nameNode == nil || nameNode.Value != toolName {
+			continue
+		}
+		if versionNode == nil {
+			return nil, fmt.Errorf("tool %q has no version field", toolName)
+		}
+
+		locs := &toolLocations{
+			version: scalarLocation{
+				line:  versionNode.Line,
+				value: versionNode.Value,
+				style: versionNode.Style,
+			},
+			checksums: make(map[string]scalarLocation),
+		}
+
+		if checksumsNode != nil {
+			for i := 0; i < len(checksumsNode.Content)-1; i += 2 {
+				plat := checksumsNode.Content[i].Value
+				val := checksumsNode.Content[i+1]
+				locs.checksums[plat] = scalarLocation{
+					line:  val.Line,
+					value: val.Value,
+					style: val.Style,
+				}
+			}
+		}
+
+		return locs, nil
+	}
+
+	return nil, fmt.Errorf("tool %q not found in YAML", toolName)
+}
+
+// UpdateToolVersion rewrites the config file in-place, updating the named
+// tool's version and checksums while preserving all other formatting and comments.
 func UpdateToolVersion(fs billy.Filesystem, cfg *Config, toolName, version string, checksums map[string]string) error {
 	f, err := fs.Open(cfg.filePath)
 	if err != nil {
@@ -26,79 +113,13 @@ func UpdateToolVersion(fs billy.Filesystem, cfg *Config, toolName, version strin
 		return err
 	}
 
-	var node yaml.Node
-	if err := yaml.Unmarshal(data, &node); err != nil {
+	locs, err := locateToolFields(data, toolName)
+	if err != nil {
 		return err
 	}
 
-	if node.Kind != yaml.DocumentNode || len(node.Content) == 0 {
-		return fmt.Errorf("invalid YAML document")
-	}
-
-	root := node.Content[0]
-	var toolsNode *yaml.Node
-	for i := 0; i < len(root.Content); i += 2 {
-		if root.Content[i].Value == "tools" {
-			toolsNode = root.Content[i+1]
-			break
-		}
-	}
-
-	if toolsNode == nil || toolsNode.Kind != yaml.SequenceNode {
-		return fmt.Errorf("could not find tools sequence in config")
-	}
-
-	var foundToolNode *yaml.Node
-	for _, toolNode := range toolsNode.Content {
-		for i := 0; i < len(toolNode.Content); i += 2 {
-			if toolNode.Content[i].Value == "name" && toolNode.Content[i+1].Value == toolName {
-				foundToolNode = toolNode
-				break
-			}
-		}
-		if foundToolNode != nil {
-			break
-		}
-	}
-
-	if foundToolNode == nil {
-		return fmt.Errorf("tool %q not found in YAML", toolName)
-	}
-
-	// Use line indexes from the parsed AST to replace values as strings, preserving
-	// all surrounding formatting and comments.
 	lines := strings.Split(string(data), "\n")
-
-	// Update version field.
-	for i := 0; i < len(foundToolNode.Content); i += 2 {
-		if foundToolNode.Content[i].Value == "version" {
-			valNode := foundToolNode.Content[i+1]
-			lineIdx := valNode.Line - 1
-			searchVal, newValStr := quotedPair(valNode, version)
-			lines[lineIdx] = strings.Replace(lines[lineIdx], searchVal, newValStr, 1)
-			break
-		}
-	}
-
-	// Update checksum values, and any inline renovate-local pin comments.
-	if len(checksums) > 0 {
-		for i := 0; i < len(foundToolNode.Content); i += 2 {
-			if foundToolNode.Content[i].Value == "checksums" {
-				checksumsNode := foundToolNode.Content[i+1]
-				for j := 0; j < len(checksumsNode.Content); j += 2 {
-					plat := checksumsNode.Content[j].Value
-					valNode := checksumsNode.Content[j+1]
-					if sum, ok := checksums[plat]; ok {
-						lineIdx := valNode.Line - 1
-						searchVal, newValStr := quotedPair(valNode, sum)
-						lines[lineIdx] = strings.Replace(lines[lineIdx], searchVal, newValStr, 1)
-						lines[lineIdx] = renovateLocalRe.ReplaceAllString(lines[lineIdx], "${1}="+version)
-					}
-				}
-				break
-			}
-		}
-	}
+	applyEdits(lines, locs, version, checksums)
 
 	wf, err := fs.OpenFile(cfg.filePath, os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
@@ -112,16 +133,34 @@ func UpdateToolVersion(fs billy.Filesystem, cfg *Config, toolName, version strin
 	return cerr
 }
 
-// quotedPair returns the search string and replacement string for a YAML scalar node,
+// applyEdits patches lines in-place using the field locations returned by
+// locateToolFields. No YAML library dependency — pure string manipulation.
+func applyEdits(lines []string, locs *toolLocations, version string, checksums map[string]string) {
+	lineIdx := locs.version.line - 1
+	old, replacement := quotedPair(locs.version, version)
+	lines[lineIdx] = strings.Replace(lines[lineIdx], old, replacement, 1)
+
+	for plat, loc := range locs.checksums {
+		sum, ok := checksums[plat]
+		if !ok {
+			continue
+		}
+		lineIdx := loc.line - 1
+		old, replacement := quotedPair(loc, sum)
+		lines[lineIdx] = strings.Replace(lines[lineIdx], old, replacement, 1)
+		lines[lineIdx] = renovateLocalRe.ReplaceAllString(lines[lineIdx], "${1}="+version)
+	}
+}
+
+// quotedPair returns the search string and replacement for a scalar location,
 // preserving the original quoting style.
-func quotedPair(node *yaml.Node, newVal string) (search, replacement string) {
-	old := node.Value
-	switch node.Style {
+func quotedPair(loc scalarLocation, newVal string) (search, replacement string) {
+	switch loc.style {
 	case yaml.DoubleQuotedStyle:
-		return `"` + old + `"`, `"` + newVal + `"`
+		return `"` + loc.value + `"`, `"` + newVal + `"`
 	case yaml.SingleQuotedStyle:
-		return `'` + old + `'`, `'` + newVal + `'`
+		return `'` + loc.value + `'`, `'` + newVal + `'`
 	default:
-		return old, newVal
+		return loc.value, newVal
 	}
 }
