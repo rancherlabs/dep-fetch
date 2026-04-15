@@ -55,7 +55,7 @@ tools:
       darwin/amd64: "789abc..."
       darwin/arm64: "fed321..."
     release:
-      binary_template: "golangci-lint-{version|trimprefix:v}-{os}-{arch}.tar.gz"
+      download_template: "golangci-lint-{version|trimprefix:v}-{os}-{arch}.tar.gz"
       extract: "golangci-lint-{version|trimprefix:v}-{os}-{arch}/golangci-lint"
 ```
 

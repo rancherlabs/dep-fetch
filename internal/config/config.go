@@ -37,10 +37,10 @@ type Tool struct {
 }
 
 type ReleaseConfig struct {
-	BinaryTemplate   string            `yaml:"binary_template,omitempty"`
+	DownloadTemplate string            `yaml:"download_template,omitempty"`
 	ChecksumTemplate string            `yaml:"checksum_template,omitempty"`
-	Extract          string            `yaml:"extract,omitempty"`              // path within archive to use as the binary; empty = asset is the binary
-	Extensions       map[string]string `yaml:"extensions,omitempty"`           // per-OS file extension, e.g. linux: tar.gz, darwin: zip
+	Extract          string            `yaml:"extract,omitempty"`    // path within archive to use as the binary; empty = asset is the binary
+	Extensions       map[string]string `yaml:"extensions,omitempty"` // per-OS file extension, e.g. linux: tar.gz, darwin: zip
 }
 
 func (t *Tool) Owner() string {
@@ -54,8 +54,8 @@ func (t *Tool) Repo() string {
 }
 
 func (t *Tool) BinaryTemplate() string {
-	if t.Release != nil && t.Release.BinaryTemplate != "" {
-		return t.Release.BinaryTemplate
+	if t.Release != nil && t.Release.DownloadTemplate != "" {
+		return t.Release.DownloadTemplate
 	}
 	return "{name}_{os}_{arch}"
 }

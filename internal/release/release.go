@@ -7,7 +7,7 @@ import (
 )
 
 // Vars holds the substitution values for release asset name patterns declared
-// in .bin-deps.yaml (binary_template, checksum_template).
+// in .bin-deps.yaml (download_template, checksum_template).
 type Vars struct {
 	Name    string
 	OS      string

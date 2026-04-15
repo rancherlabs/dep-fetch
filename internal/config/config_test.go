@@ -43,7 +43,7 @@ func TestToolBinaryTemplate(t *testing.T) {
 		}
 	})
 	t.Run("custom template", func(t *testing.T) {
-		tool := Tool{Release: &ReleaseConfig{BinaryTemplate: "{name}_{version}_{os}"}}
+		tool := Tool{Release: &ReleaseConfig{DownloadTemplate: "{name}_{version}_{os}"}}
 		if got := tool.BinaryTemplate(); got != "{name}_{version}_{os}" {
 			t.Errorf("BinaryTemplate() = %q, want custom", got)
 		}
