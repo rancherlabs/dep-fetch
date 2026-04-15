@@ -6,16 +6,25 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 )
 
-// withTestServer temporarily redirects apiBase to the given httptest server
-// and restores it after the test.
+// withTestServer temporarily redirects apiBase and allowedHostSuffix to the given
+// httptest server and restores them after the test.
 func withTestServer(t *testing.T, ts *httptest.Server) {
 	t.Helper()
-	orig := apiBase
+	u, err := url.Parse(ts.URL)
+	if err != nil {
+		t.Fatalf("parsing test server URL: %v", err)
+	}
+	origBase, origSuffix := apiBase, allowedHostSuffix
 	apiBase = ts.URL
-	t.Cleanup(func() { apiBase = orig })
+	allowedHostSuffix = u.Host
+	t.Cleanup(func() {
+		apiBase = origBase
+		allowedHostSuffix = origSuffix
+	})
 }
 
 func TestLatestRelease_OK(t *testing.T) {
@@ -91,6 +100,7 @@ func TestDownloadAsset_OK(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
+	withTestServer(t, ts)
 
 	var buf bytes.Buffer
 	if err := DownloadAsset(ts.URL+"/asset", &buf); err != nil {
@@ -106,6 +116,7 @@ func TestDownloadAsset_HTTP500(t *testing.T) {
 		http.Error(w, "server error", http.StatusInternalServerError)
 	}))
 	defer ts.Close()
+	withTestServer(t, ts)
 
 	var buf bytes.Buffer
 	err := DownloadAsset(ts.URL+"/asset", &buf)
@@ -121,6 +132,7 @@ func TestDownloadAsset_CopyError(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
+	withTestServer(t, ts)
 
 	err := DownloadAsset(ts.URL+"/asset", &failWriter{})
 	if err == nil {

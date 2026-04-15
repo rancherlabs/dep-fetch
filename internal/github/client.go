@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-var apiBase = "https://api.github.com"
+var (
+	apiBase           = "https://api.github.com"
+	allowedHostSuffix = "github.com"
+)
 
 type release struct {
 	TagName string `json:"tag_name"`
@@ -48,6 +51,13 @@ func DownloadAsset(assetURL string, w io.Writer) error {
 	return nil
 }
 
+func validateHost(host string) error {
+	if strings.HasSuffix(host, allowedHostSuffix) {
+		return nil
+	}
+	return fmt.Errorf("unauthorized host: %s", host)
+}
+
 func doGet(url, accept string) (io.ReadCloser, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -58,11 +68,11 @@ func doGet(url, accept string) (io.ReadCloser, error) {
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	if !strings.HasSuffix(req.URL.Host, "github.com") {
-		return nil, fmt.Errorf("unauthorized host: %s", req.URL.Host)
+	if err := validateHost(req.URL.Host); err != nil {
+		return nil, err
 	}
 
-	// #nosec G704 - Host is validated against github.com domain suffix
+	// #nosec G107 - Host is validated against github.com domain suffix or test apiBase
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s: %w", url, err)
