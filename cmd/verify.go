@@ -18,6 +18,7 @@ or release-provided checksum.
 
 If a binary is missing, it is downloaded and verified (sync semantics).
 Exits non-zero if any verification fails.`,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fs := osfs.New(".")
 

@@ -34,6 +34,7 @@ Then run the same commands locally:
 dep-fetch sync     # fetch and verify all tools into ./bin
 dep-fetch verify   # verify checksums without re-fetching
 dep-fetch list     # show installed vs declared versions
+dep-fetch update <name> <version>  # update a tool's version and checksums in config
 ```
 
 ## Config

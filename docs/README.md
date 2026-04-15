@@ -37,6 +37,7 @@ tools:
 dep-fetch sync        # fetch/verify all tools
 dep-fetch verify      # verify checksums without re-fetching
 dep-fetch list        # show current state
+dep-fetch update <name> <version>  # update a tool's version and checksums
 ```
 
 ## Design philosophy

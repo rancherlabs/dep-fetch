@@ -23,8 +23,22 @@ const (
 )
 
 type Config struct {
-	BinDir string `yaml:"bin_dir,omitempty"`
-	Tools  []Tool `yaml:"tools"`
+	filePath string `yaml:"-"`
+	BinDir   string `yaml:"bin_dir,omitempty"`
+	Tools    []Tool `yaml:"tools"`
+}
+
+func (c *Config) FilePath() string {
+	return c.filePath
+}
+
+func (c *Config) GetTool(name string) (Tool, error) {
+	for _, t := range c.Tools {
+		if t.Name == name {
+			return t, nil
+		}
+	}
+	return Tool{}, fmt.Errorf("tool %q not found", name)
 }
 
 type Tool struct {
@@ -112,6 +126,7 @@ func Load(fs billy.Filesystem, configPath, binDir string) (*Config, string, erro
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, "", fmt.Errorf("parsing config %s: %w", path, err)
 	}
+	cfg.filePath = path
 
 	resolved := resolveBinDir(binDir, cfg.BinDir)
 

@@ -13,6 +13,7 @@ dep-fetch sync               # fetch/verify all tools in config
 dep-fetch sync <name>        # fetch/verify a single tool by name
 dep-fetch list               # show current state of all declared tools
 dep-fetch verify             # verify checksums of already-downloaded binaries without re-fetching
+dep-fetch update <name> [version]  # update tool version and checksums in config (default version: latest)
 ```
 
 `dep-fetch verify` checks the SHA-256 of each binary against the checksum recorded in its receipt at install time. Using the receipt checksum (rather than the originally declared or release-provided checksum) is intentionally more defensive: for archive assets the receipt stores the extracted binary's checksum, which differs from the asset checksum. This means `verify` catches corruption or replacement of the extracted binary even when the original asset checksum is no longer available. If a binary is missing entirely, it is downloaded and verified (i.e. `verify` falls back to sync semantics for absent tools). If a download fails, the command exits non-zero.
@@ -95,7 +96,7 @@ tools:
 | `source` | yes | — | GitHub `owner/repo` |
 | `mode` | yes | — | `release-checksums` or `pinned` |
 | `release.download_template` | no | `{name}_{os}_{arch}` | Release asset filename to download (include extension, e.g. `.tar.gz`) |
-| `release.checksum_template` | no | `checksums.txt` | Checksum file asset name (`release-checksums` mode only) |
+| `release.checksum_template` | no | `checksums.txt` | Checksum file asset name. Used at runtime by `release-checksums` mode to verify downloads, and by `dep-fetch update` to fetch new checksums when updating a `pinned` mode tool. |
 | `release.extract` | no | — | Path within archive to use as the binary. Required when `download_template` is an archive. Omit for direct binary assets. |
 | `release.extensions` | no | — | Map of OS name to file extension string (e.g. `linux: tar.gz`). Populates the `{ext}` template variable. |
 | `checksums` | required for `pinned` | — | Map of `{os}/{arch}` to SHA-256 hex digest of the **downloaded asset** (archive or binary) |
@@ -165,17 +166,25 @@ Flow:
 
 ### `pinned`
 
-Checksums for each platform are declared directly in the config. No checksum file is fetched from the release; the config itself is the trust anchor.
+Checksums for each platform are declared directly in the config. No checksum file is fetched from the release at sync time; the config itself is the trust anchor.
 
 This mode works for **any** `source` — no allowlist check is performed. `version: latest` is not valid in this mode — hard error at parse time.
 
-Flow:
+`release.checksum_template` is not used during `sync` or `verify`, but **is** used by `dep-fetch update` to locate the upstream checksum file when refreshing checksums. If the tool's release doesn't publish a checksum file, or the file doesn't cover all declared platforms, `update` falls back to downloading each platform asset individually and computing its SHA-256.
+
+Sync flow:
 1. Check receipt in `.dep-fetch/` — skip if version matches and binary checksum is intact
 2. Look up `{os}/{arch}` in `checksums` map — error if missing
 3. Download `{download_template}` asset
 4. Verify SHA-256 of downloaded asset against pinned value
 5. Extract binary if `release.extract` is set (archive assets); decompress if `.gz`
 6. Move binary to `bin_dir/{name}`, set executable bit; write receipt to `.dep-fetch/`
+
+Update flow (`dep-fetch update <name> [version]`):
+1. Resolve version (default: latest release tag from GitHub)
+2. Attempt to download `{checksum_template}` asset from the release; parse SHA-256 entries for each declared platform
+3. If the checksum file is missing or does not cover all platforms, download each `{download_template}` asset individually and compute its SHA-256
+4. Rewrite the tool's `version` and `checksums` fields in the config file in-place, preserving all formatting and comments
 
 ---
 
