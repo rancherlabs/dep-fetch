@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 
-	"github.com/rancher/dep-fetch/internal/config"
+	"github.com/rancherlabs/dep-fetch/internal/config"
 )
 
 const (

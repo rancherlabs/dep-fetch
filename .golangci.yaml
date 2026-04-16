@@ -19,7 +19,7 @@ formatters:
   settings:
     goimports:
       local-prefixes:
-        - github.com/rancher/dep-fetch
+        - github.com/rancherlabs/dep-fetch
 
 issues:
   max-issues-per-linter: 0

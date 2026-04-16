@@ -21,7 +21,7 @@ set -euo pipefail
 VERSION="v0.1.0"
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
-URL="https://github.com/rancher/dep-fetch/releases/download/${VERSION}/dep-fetch_${OS}_${ARCH}"
+URL="https://github.com/rancherlabs/dep-fetch/releases/download/${VERSION}/dep-fetch_${OS}_${ARCH}"
 EXPECTED_SHA="<hardcoded-sha256-for-this-version>"
 
 curl -fsSL "${URL}" -o bin/dep-fetch
