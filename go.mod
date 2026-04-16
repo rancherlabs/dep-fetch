@@ -1,4 +1,4 @@
-module github.com/rancher/dep-fetch
+module github.com/rancherlabs/dep-fetch
 
 go 1.26.0
 

@@ -185,8 +185,8 @@ func TestAssetURL(t *testing.T) {
 		want                    string
 	}{
 		{
-			owner: "rancher", repo: "dep-fetch", tag: "v1.0.0", asset: "dep-fetch_linux_amd64",
-			want: "https://github.com/rancher/dep-fetch/releases/download/v1.0.0/dep-fetch_linux_amd64",
+			owner: "rancherlabs", repo: "dep-fetch", tag: "v1.0.0", asset: "dep-fetch_linux_amd64",
+			want: "https://github.com/rancherlabs/dep-fetch/releases/download/v1.0.0/dep-fetch_linux_amd64",
 		},
 		{
 			owner: "owner", repo: "repo", tag: "v0.1.2", asset: "checksums.txt",

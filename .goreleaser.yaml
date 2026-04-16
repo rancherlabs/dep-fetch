@@ -22,9 +22,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/rancher/dep-fetch/internal/version.Version={{.Version}}
-      - -X github.com/rancher/dep-fetch/internal/version.Commit={{.Commit}}
-      - -X github.com/rancher/dep-fetch/internal/version.BuildTime={{.Date}}
+      - -X github.com/rancherlabs/dep-fetch/internal/version.Version={{.Version}}
+      - -X github.com/rancherlabs/dep-fetch/internal/version.Commit={{.Commit}}
+      - -X github.com/rancherlabs/dep-fetch/internal/version.BuildTime={{.Date}}
 
 # Produce raw binaries (no archives) so the default {name}_{os}_{arch} template
 # in .bin-deps.yaml works without needing a tar path override.

@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/rancher/dep-fetch/internal/version"
+	"github.com/rancherlabs/dep-fetch/internal/version"
 )
 
 var versionCmd = &cobra.Command{

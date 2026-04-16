@@ -22,10 +22,10 @@ Pin `version` to a specific release for production workflows. Omit it to always 
 
 ## Developer workstations
 
-Download the binary for your platform from [Releases](https://github.com/rancher/dep-fetch/releases), or:
+Download the binary for your platform from [Releases](https://github.com/rancherlabs/dep-fetch/releases), or:
 
 ```sh
-go install github.com/rancher/dep-fetch@latest
+go install github.com/rancherlabs/dep-fetch@latest
 ```
 
 Then run the same commands locally:
