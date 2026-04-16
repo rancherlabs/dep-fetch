@@ -13,12 +13,12 @@ import (
 
 	"github.com/go-git/go-billy/v5"
 
-	"github.com/mallardduck/dep-fetch/internal/cache"
-	"github.com/mallardduck/dep-fetch/internal/config"
-	gh "github.com/mallardduck/dep-fetch/internal/github"
-	"github.com/mallardduck/dep-fetch/internal/platform"
-	"github.com/mallardduck/dep-fetch/internal/receipt"
-	"github.com/mallardduck/dep-fetch/internal/release"
+	"github.com/rancher/dep-fetch/internal/cache"
+	"github.com/rancher/dep-fetch/internal/config"
+	gh "github.com/rancher/dep-fetch/internal/github"
+	"github.com/rancher/dep-fetch/internal/platform"
+	"github.com/rancher/dep-fetch/internal/receipt"
+	"github.com/rancher/dep-fetch/internal/release"
 )
 
 // ToolStatus describes the installed state of a single tool.

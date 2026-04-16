@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/mallardduck/dep-fetch/internal/config"
+	"github.com/rancher/dep-fetch/internal/config"
 )
 
 var (
