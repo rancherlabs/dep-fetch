@@ -1,4 +1,4 @@
-module github.com/mallardduck/dep-fetch
+module github.com/rancher/dep-fetch
 
 go 1.26.0
 

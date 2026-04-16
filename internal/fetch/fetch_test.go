@@ -18,10 +18,10 @@ import (
 	"github.com/go-git/go-billy/v5/memfs"
 	"github.com/go-git/go-billy/v5/osfs"
 
-	"github.com/mallardduck/dep-fetch/internal/cache"
-	"github.com/mallardduck/dep-fetch/internal/config"
-	"github.com/mallardduck/dep-fetch/internal/platform"
-	"github.com/mallardduck/dep-fetch/internal/receipt"
+	"github.com/rancher/dep-fetch/internal/cache"
+	"github.com/rancher/dep-fetch/internal/config"
+	"github.com/rancher/dep-fetch/internal/platform"
+	"github.com/rancher/dep-fetch/internal/receipt"
 )
 
 // roundTripFunc lets tests stub http.DefaultTransport without starting a server.

@@ -9,9 +9,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/mallardduck/dep-fetch/internal/config"
-	gh "github.com/mallardduck/dep-fetch/internal/github"
-	"github.com/mallardduck/dep-fetch/internal/release"
+	"github.com/rancher/dep-fetch/internal/config"
+	gh "github.com/rancher/dep-fetch/internal/github"
+	"github.com/rancher/dep-fetch/internal/release"
 )
 
 // verifyReader computes the SHA-256 of all data read from r and compares it to expected.

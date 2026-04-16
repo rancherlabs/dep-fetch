@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mallardduck/dep-fetch/internal/config"
+	"github.com/rancher/dep-fetch/internal/config"
 )
 
 func TestVerifyReader_Match(t *testing.T) {
