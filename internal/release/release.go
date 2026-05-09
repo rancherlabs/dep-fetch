@@ -2,8 +2,8 @@ package release
 
 import (
 	"fmt"
-	"regexp"
-	"strings"
+
+	ghrelease "github.com/mallardduck/ghreleases"
 )
 
 // Vars holds the substitution values for release asset name patterns declared
@@ -15,9 +15,6 @@ type Vars struct {
 	Version string // e.g. v0.18.0
 	Ext     string // file extension for the platform, e.g. "tar.gz" or "zip"
 }
-
-// tokenRe matches {variable} and {variable|modifier1,modifier2,...} template tokens.
-var tokenRe = regexp.MustCompile(`\{([^}|]+)(?:\|([^}]*))?\}`)
 
 // Render substitutes all template variables in a release asset name pattern.
 // Tokens take the form {variable} or {variable|modifier1,modifier2,...}.
@@ -31,52 +28,22 @@ var tokenRe = regexp.MustCompile(`\{([^}|]+)(?:\|([^}]*))?\}`)
 //   - trimsuffix:ARG     — strings.TrimSuffix(val, ARG)
 //   - replace:FROM=TO    — replace exact value (e.g. amd64 → x86_64); noop if no match
 //
-// Design restriction: modifier arguments (the part after ':') must not contain a
-// pipe character, because pipes are the modifier separator. This is unlikely to
-// be a problem in practice since asset names do not contain pipes.
-//
 // Unknown variables or modifiers are left as-is.
 func Render(pattern string, v Vars) string {
-	vars := map[string]string{
-		"name":    v.Name,
-		"os":      v.OS,
-		"arch":    v.Arch,
-		"version": v.Version,
-		"ext":     v.Ext,
+	vars := ghrelease.TemplateVars{
+		Name:    v.Name,
+		OS:      v.OS,
+		Arch:    v.Arch,
+		Version: v.Version,
+		Ext:     v.Ext,
 	}
-	return tokenRe.ReplaceAllStringFunc(pattern, func(token string) string {
-		m := tokenRe.FindStringSubmatch(token)
-		val, ok := vars[m[1]]
-		if !ok {
-			return token
-		}
-		if m[2] == "" {
-			return val
-		}
-		for mod := range strings.SplitSeq(m[2], "|") {
-			name, arg, _ := strings.Cut(mod, ":")
-			switch name {
-			case "upper":
-				val = strings.ToUpper(val)
-			case "lower":
-				val = strings.ToLower(val)
-			case "title":
-				if val != "" {
-					val = strings.ToUpper(val[:1]) + val[1:]
-				}
-			case "trimprefix":
-				val = strings.TrimPrefix(val, arg)
-			case "trimsuffix":
-				val = strings.TrimSuffix(val, arg)
-			case "replace":
-				from, to, ok := strings.Cut(arg, "=")
-				if ok && val == from {
-					val = to
-				}
-			}
-		}
-		return val
-	})
+	// Use TemplatePermissive to maintain backward compatibility (unknown vars pass through)
+	result, err := ghrelease.Render(pattern, vars, ghrelease.TemplateFailsafe)
+	if err != nil {
+		// Fallback to original pattern if render fails (shouldn't happen in permissive mode)
+		return pattern
+	}
+	return result
 }
 
 // AssetURL returns the download URL for a named asset in a GitHub release.

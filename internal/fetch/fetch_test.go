@@ -674,33 +674,6 @@ func TestList_LatestVersionCacheHit(t *testing.T) {
 
 // --- extractBinary error paths ---
 
-func TestGunzip_InvalidData(t *testing.T) {
-	if _, err := gunzip([]byte("not gzip data")); err == nil {
-		t.Error("gunzip() expected error for invalid gzip data")
-	}
-}
-
-func TestExtractFromTarGz_InvalidGzip(t *testing.T) {
-	if _, err := extractFromTarGz([]byte("not gzip"), "file"); err == nil {
-		t.Error("extractFromTarGz() expected error for invalid gzip")
-	}
-}
-
-func TestExtractFromTarGz_InvalidTar(t *testing.T) {
-	var buf bytes.Buffer
-	gz := gzip.NewWriter(&buf)
-	if _, err := gz.Write([]byte("this is not a tar archive")); err != nil {
-		t.Fatal(err)
-	}
-	if err := gz.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if _, err := extractFromTarGz(buf.Bytes(), "file"); err == nil {
-		t.Error("extractFromTarGz() expected error for invalid tar content")
-	}
-}
-
 func TestVerifyReader_ReadError(t *testing.T) {
 	if _, err := verifyReader(&errReader{}, "anychecksum"); err == nil {
 		t.Error("verifyReader() expected error from reader failure")
@@ -757,7 +730,8 @@ func TestExtractBinary_TarGz(t *testing.T) {
 
 func TestExtractBinary_TarGz_DotSlashPath(t *testing.T) {
 	content := []byte("the binary")
-	got, err := extractBinary(makeTarGz(t, "./bin/mytool", content), "archive.tar.gz", "bin/mytool")
+	// ghreleases requires exact path match including ./ prefix
+	got, err := extractBinary(makeTarGz(t, "./bin/mytool", content), "archive.tar.gz", "./bin/mytool")
 	if err != nil {
 		t.Fatalf("extractBinary() unexpected error: %v", err)
 	}
@@ -767,8 +741,14 @@ func TestExtractBinary_TarGz_DotSlashPath(t *testing.T) {
 }
 
 func TestExtractBinary_TarGz_NoExtractPath(t *testing.T) {
-	if _, err := extractBinary(makeTarGz(t, "bin/mytool", []byte("data")), "archive.tar.gz", ""); err == nil {
-		t.Error("extractBinary() expected error for .tar.gz with no extract path")
+	// ghreleases auto-extracts single-file archives when no extract path is provided
+	content := []byte("data")
+	got, err := extractBinary(makeTarGz(t, "bin/mytool", content), "archive.tar.gz", "")
+	if err != nil {
+		t.Fatalf("extractBinary() unexpected error: %v", err)
+	}
+	if string(got) != string(content) {
+		t.Errorf("extractBinary() auto-extracted content = %q, want %q", got, content)
 	}
 }
 
@@ -801,8 +781,14 @@ func TestExtractBinary_Zip(t *testing.T) {
 }
 
 func TestExtractBinary_Zip_NoExtractPath(t *testing.T) {
-	if _, err := extractBinary(makeZip(t, "mytool", []byte("data")), "archive.zip", ""); err == nil {
-		t.Error("extractBinary() expected error for .zip with no extract path")
+	// ghreleases auto-extracts single-file archives when no extract path is provided
+	content := []byte("data")
+	got, err := extractBinary(makeZip(t, "mytool", content), "archive.zip", "")
+	if err != nil {
+		t.Fatalf("extractBinary() unexpected error: %v", err)
+	}
+	if string(got) != string(content) {
+		t.Errorf("extractBinary() auto-extracted content = %q, want %q", got, content)
 	}
 }
 

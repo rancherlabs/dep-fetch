@@ -1,16 +1,17 @@
 package fetch
 
 import (
-	"bufio"
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"strings"
 
+	ghrelease "github.com/mallardduck/ghreleases"
+
 	"github.com/rancherlabs/dep-fetch/internal/config"
-	gh "github.com/rancherlabs/dep-fetch/internal/github"
 	"github.com/rancherlabs/dep-fetch/internal/release"
 )
 
@@ -48,7 +49,7 @@ func FetchChecksums(tool *config.Tool, version string) (map[string]string, error
 
 	fmt.Printf("  Attempting to use checksum file %s...\n", checksumAsset)
 	var checksumBuf bytes.Buffer
-	err := gh.DownloadAsset(checksumURL, &checksumBuf)
+	_, err := ghClient.Download(checksumURL, &checksumBuf, ghrelease.DownloadOptions{Context: context.Background()})
 	if err == nil {
 		allFound := true
 		tempChecksums := make(map[string]string)
@@ -89,7 +90,7 @@ func FetchChecksums(tool *config.Tool, version string) (map[string]string, error
 
 		fmt.Printf("  Fetching %s/%s (%s)...\n", vars.OS, vars.Arch, assetName)
 		var buf bytes.Buffer
-		if err := gh.DownloadAsset(assetURL, &buf); err != nil {
+		if _, err := ghClient.Download(assetURL, &buf, ghrelease.DownloadOptions{Context: context.Background()}); err != nil {
 			return nil, fmt.Errorf("downloading %s: %w", assetName, err)
 		}
 		checksums[plat] = sha256Hex(buf.Bytes())
@@ -100,19 +101,30 @@ func FetchChecksums(tool *config.Tool, version string) (map[string]string, error
 // parseChecksumFile finds the SHA-256 for assetName in a checksums.txt-style file.
 // Each line is expected to be: "<hex>  <filename>" (two spaces, GNU coreutils sha256sum format).
 func parseChecksumFile(data []byte, assetName string) (string, error) {
-	scanner := bufio.NewScanner(strings.NewReader(string(data)))
-	for scanner.Scan() {
-		line := scanner.Text()
-		// Support both one-space and two-space separators.
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
-			continue
+	checksums, err := ghrelease.ParseChecksumFile(bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("parsing checksum file: %w", err)
+	}
+
+	// Try exact match first
+	if sum, ok := checksums[assetName]; ok {
+		return sum, nil
+	}
+
+	// Try matching with various prefix/path variations
+	for name, sum := range checksums {
+		// Strip common prefixes for comparison
+		cleanName := strings.TrimPrefix(strings.TrimPrefix(name, "./"), "*")
+
+		if cleanName == assetName {
+			return sum, nil
 		}
-		// Some checksum files prefix the filename with "./" or "*".
-		name := strings.TrimPrefix(strings.TrimPrefix(parts[1], "./"), "*")
-		if name == assetName || strings.HasSuffix(name, "/"+assetName) {
-			return parts[0], nil
+
+		// Try matching basename (for path-prefixed entries)
+		if strings.HasSuffix(cleanName, "/"+assetName) {
+			return sum, nil
 		}
 	}
+
 	return "", fmt.Errorf("no checksum entry for %q in checksum file", assetName)
 }

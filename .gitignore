@@ -4,6 +4,7 @@ dist/
 
 # dep-fetch local state (cache, etag, latest metadata)
 .dep-fetch/
+dep-fetch
 
 # Go toolchain
 *.test

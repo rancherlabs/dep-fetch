@@ -9,6 +9,7 @@ import (
 
 	"github.com/rancherlabs/dep-fetch/internal/config"
 	"github.com/rancherlabs/dep-fetch/internal/fetch"
+	"github.com/rancherlabs/dep-fetch/internal/format"
 )
 
 var listCmd = &cobra.Command{
@@ -32,28 +33,10 @@ var listCmd = &cobra.Command{
 		fmt.Printf("%-28s %-12s %-20s %s\n", "NAME", "VERSION", "MODE", "STATUS")
 		fmt.Printf("%-28s %-12s %-20s %s\n", "----", "-------", "----", "------")
 		for _, s := range statuses {
-			fmt.Printf("%-28s %-12s %-20s %s\n", s.Name, s.DeclaredVersion, s.Mode, statusLabel(s))
+			fmt.Printf("%-28s %-12s %-20s %s\n", s.Name, s.DeclaredVersion, s.Mode, format.StatusLabel(s))
 		}
 		return nil
 	},
-}
-
-func statusLabel(s fetch.ToolStatus) string {
-	if !s.IsInstalled() {
-		return "not installed"
-	}
-	if s.IsUpToDate() {
-		return fmt.Sprintf("current (%s)", s.InstalledVersion)
-	}
-	// version: latest with no cache — we don't know what "latest" is, so just report installed.
-	if s.DeclaredVersion == "latest" && s.ResolvedVersion == "" {
-		return fmt.Sprintf("installed (%s)", s.InstalledVersion)
-	}
-	// version: latest with a cached tag that differs from installed.
-	if s.DeclaredVersion == "latest" {
-		return fmt.Sprintf("outdated (installed %s, latest %s)", s.InstalledVersion, s.ResolvedVersion)
-	}
-	return fmt.Sprintf("outdated (installed %s)", s.InstalledVersion)
 }
 
 func init() {
