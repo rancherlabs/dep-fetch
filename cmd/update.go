@@ -5,11 +5,10 @@ import (
 	"fmt"
 
 	"github.com/go-git/go-billy/v5/osfs"
-	ghrelease "github.com/mallardduck/ghreleases"
 	"github.com/spf13/cobra"
 
 	"github.com/rancherlabs/dep-fetch/internal/config"
-	"github.com/rancherlabs/dep-fetch/internal/fetch"
+	"github.com/rancherlabs/dep-fetch/internal/update"
 )
 
 var updateCmd = &cobra.Command{
@@ -34,40 +33,18 @@ If version is "latest", the latest release tag is fetched from GitHub.`,
 			return err
 		}
 
-		targetTool, err := cfg.GetTool(toolName)
-		if err != nil {
-			return err
-		}
-
-		if targetTool.Mode != config.ModePinned {
-			return fmt.Errorf("tool %q is not pinned, cannot update", toolName)
-		}
-
-		if newVersion == "latest" {
-			client := ghrelease.NewClient("")
-			v, err := client.LatestRelease(context.Background(), targetTool.Owner(), targetTool.Repo())
-			if err != nil {
-				return fmt.Errorf("fetching latest release for %s/%s: %w", targetTool.Owner(), targetTool.Repo(), err)
-			}
-			newVersion = v
-		}
-
 		fmt.Printf("Updating %s to %s...\n", toolName, newVersion)
 
-		checksums, err := fetch.FetchChecksums(&targetTool, newVersion)
+		result, err := update.Update(context.Background(), fs, cfg, update.Options{
+			ToolName:   toolName,
+			NewVersion: newVersion,
+		})
 		if err != nil {
 			return err
 		}
 
-		if err := config.UpdateToolVersion(fs, cfg, toolName, newVersion, checksums); err != nil {
-			return err
-		}
-
-		if err := fetch.InvalidateReceipt(fs, toolName); err != nil {
-			return fmt.Errorf("invalidating receipt for %s: %w", toolName, err)
-		}
-
-		fmt.Printf("Successfully updated %s to %s in %s\n", toolName, newVersion, cfg.FilePath())
+		fmt.Printf("Successfully updated %s to %s in %s\n",
+			result.ToolName, result.ResolvedVersion, cfg.FilePath())
 		return nil
 	},
 }
