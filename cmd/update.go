@@ -1,14 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/go-git/go-billy/v5/osfs"
+	ghrelease "github.com/mallardduck/ghreleases"
 	"github.com/spf13/cobra"
 
 	"github.com/rancherlabs/dep-fetch/internal/config"
 	"github.com/rancherlabs/dep-fetch/internal/fetch"
-	gh "github.com/rancherlabs/dep-fetch/internal/github"
 )
 
 var updateCmd = &cobra.Command{
@@ -43,7 +44,8 @@ If version is "latest", the latest release tag is fetched from GitHub.`,
 		}
 
 		if newVersion == "latest" {
-			v, err := gh.LatestRelease(targetTool.Owner(), targetTool.Repo())
+			client := ghrelease.NewClient("")
+			v, err := client.LatestRelease(context.Background(), targetTool.Owner(), targetTool.Repo())
 			if err != nil {
 				return fmt.Errorf("fetching latest release for %s/%s: %w", targetTool.Owner(), targetTool.Repo(), err)
 			}

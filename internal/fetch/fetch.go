@@ -1,25 +1,24 @@
 package fetch
 
 import (
-	"archive/tar"
-	"archive/zip"
 	"bytes"
-	"compress/gzip"
+	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
+	ghrelease "github.com/mallardduck/ghreleases"
 
 	"github.com/rancherlabs/dep-fetch/internal/cache"
 	"github.com/rancherlabs/dep-fetch/internal/config"
-	gh "github.com/rancherlabs/dep-fetch/internal/github"
 	"github.com/rancherlabs/dep-fetch/internal/platform"
 	"github.com/rancherlabs/dep-fetch/internal/receipt"
 	"github.com/rancherlabs/dep-fetch/internal/release"
 )
+
+var ghClient = ghrelease.NewClient("")
 
 // ToolStatus describes the installed state of a single tool.
 type ToolStatus struct {
@@ -101,7 +100,7 @@ func verifyChecksumFileHash(t config.Tool, version, expectedHash string) error {
 	checksumURL := release.AssetURL(t.Owner(), t.Repo(), version, checksumAsset)
 
 	var buf bytes.Buffer
-	if err := gh.DownloadAsset(checksumURL, &buf); err != nil {
+	if _, err := ghClient.Download(checksumURL, &buf, ghrelease.DownloadOptions{Context: context.Background()}); err != nil {
 		return fmt.Errorf("re-downloading checksum file %s: %w", checksumAsset, err)
 	}
 
@@ -228,7 +227,7 @@ func syncPinned(fs billy.Filesystem, binDir string, t config.Tool, version, goos
 	checksumURL := release.AssetURL(t.Owner(), t.Repo(), version, checksumAsset)
 
 	var checksumBuf bytes.Buffer
-	if dlErr := gh.DownloadAsset(checksumURL, &checksumBuf); dlErr != nil {
+	if _, dlErr := ghClient.Download(checksumURL, &checksumBuf, ghrelease.DownloadOptions{Context: context.Background()}); dlErr != nil {
 		fmt.Printf("  %s: checksum file unavailable, chain tracking skipped (%v)\n", t.Name, dlErr)
 	} else {
 		checksumFileHash = sha256Hex(checksumBuf.Bytes())
@@ -241,7 +240,7 @@ func syncPinned(fs billy.Filesystem, binDir string, t config.Tool, version, goos
 func syncReleaseChecksums(fs billy.Filesystem, binDir string, t config.Tool, version, assetName, extractPath, checksumAsset string) (binChecksum, checksumFileHash string, err error) {
 	checksumURL := release.AssetURL(t.Owner(), t.Repo(), version, checksumAsset)
 	var checksumBuf bytes.Buffer
-	if err := gh.DownloadAsset(checksumURL, &checksumBuf); err != nil {
+	if _, err := ghClient.Download(checksumURL, &checksumBuf, ghrelease.DownloadOptions{Context: context.Background()}); err != nil {
 		return "", "", fmt.Errorf("downloading checksum file: %w", err)
 	}
 
@@ -268,7 +267,7 @@ func downloadAndInstall(fs billy.Filesystem, binDir, name, owner, repo, version,
 
 	// Download to an in-memory buffer so we can verify before writing.
 	var buf bytes.Buffer
-	if err := gh.DownloadAsset(assetURL, &buf); err != nil {
+	if _, err := ghClient.Download(assetURL, &buf, ghrelease.DownloadOptions{Context: context.Background()}); err != nil {
 		return "", fmt.Errorf("downloading %s: %w", assetName, err)
 	}
 
@@ -322,77 +321,16 @@ func downloadAndInstall(fs billy.Filesystem, binDir, name, owner, repo, version,
 // If extractPath is empty, the asset itself is the binary (possibly gunzipped if .gz).
 // Supported archive formats: .tar.gz / .tgz, .zip, .gz (gunzip only).
 func extractBinary(data []byte, assetName, extractPath string) ([]byte, error) {
-	switch {
-	case strings.HasSuffix(assetName, ".tar.gz") || strings.HasSuffix(assetName, ".tgz"):
-		if extractPath == "" {
-			return nil, fmt.Errorf("asset %q is a tar archive but no extract path was specified", assetName)
-		}
-		return extractFromTarGz(data, extractPath)
-
-	case strings.HasSuffix(assetName, ".zip"):
-		if extractPath == "" {
-			return nil, fmt.Errorf("asset %q is a zip archive but no extract path was specified", assetName)
-		}
-		return extractFromZip(data, extractPath)
-
-	case strings.HasSuffix(assetName, ".gz"):
-		// Standalone gzip — no extract path needed, just decompress.
-		return gunzip(data)
-
-	default:
-		// Direct binary — use as-is.
-		return data, nil
+	opts := ghrelease.ExtractOptions{
+		ExtractPath: extractPath,
 	}
-}
 
-func extractFromTarGz(data []byte, path string) ([]byte, error) {
-	gz, err := gzip.NewReader(bytes.NewReader(data))
+	binData, err := ghrelease.Extract(data, assetName, opts)
 	if err != nil {
-		return nil, fmt.Errorf("opening gzip: %w", err)
+		return nil, err
 	}
-	defer gz.Close() //nolint:errcheck // read-only decompression; close error is not actionable
 
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("reading tar: %w", err)
-		}
-		if hdr.Name == path || strings.TrimPrefix(hdr.Name, "./") == path {
-			return io.ReadAll(tr)
-		}
-	}
-	return nil, fmt.Errorf("%q not found in tar archive", path)
-}
-
-func extractFromZip(data []byte, path string) ([]byte, error) {
-	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		return nil, fmt.Errorf("opening zip: %w", err)
-	}
-	for _, f := range zr.File {
-		if f.Name == path || strings.TrimPrefix(f.Name, "./") == path {
-			rc, err := f.Open()
-			if err != nil {
-				return nil, fmt.Errorf("opening %q in zip: %w", path, err)
-			}
-			defer rc.Close() //nolint:errcheck // read-only; close error is not actionable
-			return io.ReadAll(rc)
-		}
-	}
-	return nil, fmt.Errorf("%q not found in zip archive", path)
-}
-
-func gunzip(data []byte) ([]byte, error) {
-	gz, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, fmt.Errorf("opening gzip: %w", err)
-	}
-	defer gz.Close() //nolint:errcheck // read-only decompression; close error is not actionable
-	return io.ReadAll(gz)
+	return binData, nil
 }
 
 // resolveVersion returns the concrete version tag for a tool, consulting the cache for "latest".
@@ -407,7 +345,7 @@ func resolveVersion(fs billy.Filesystem, t config.Tool) (string, error) {
 		return v, nil
 	}
 
-	v, err := gh.LatestRelease(t.Owner(), t.Repo())
+	v, err := ghClient.LatestRelease(context.Background(), t.Owner(), t.Repo())
 	if err != nil {
 		return "", err
 	}

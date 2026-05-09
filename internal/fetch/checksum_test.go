@@ -68,46 +68,46 @@ func TestSha256Hex(t *testing.T) {
 }
 
 func TestParseChecksumFile_Found(t *testing.T) {
-	content := []byte("abc123  myfile.tar.gz\ndef456  other.tar.gz\n")
+	content := []byte("abc1230000000000000000000000000000000000000000000000000000000000  myfile.tar.gz\ndef4560000000000000000000000000000000000000000000000000000000000  other.tar.gz\n")
 	checksum, err := parseChecksumFile(content, "myfile.tar.gz")
 	if err != nil {
 		t.Fatalf("parseChecksumFile() unexpected error: %v", err)
 	}
-	if checksum != "abc123" {
-		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc123")
+	if checksum != "abc1230000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc1230000000000000000000000000000000000000000000000000000000000")
 	}
 }
 
 func TestParseChecksumFile_DotSlashPrefix(t *testing.T) {
-	content := []byte("abc123  ./myfile.tar.gz\n")
+	content := []byte("abc1230000000000000000000000000000000000000000000000000000000000  ./myfile.tar.gz\n")
 	checksum, err := parseChecksumFile(content, "myfile.tar.gz")
 	if err != nil {
 		t.Fatalf("parseChecksumFile() unexpected error for ./ prefix: %v", err)
 	}
-	if checksum != "abc123" {
-		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc123")
+	if checksum != "abc1230000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc1230000000000000000000000000000000000000000000000000000000000")
 	}
 }
 
 func TestParseChecksumFile_StarPrefix(t *testing.T) {
-	content := []byte("abc123  *myfile.tar.gz\n")
+	content := []byte("abc1230000000000000000000000000000000000000000000000000000000000  *myfile.tar.gz\n")
 	checksum, err := parseChecksumFile(content, "myfile.tar.gz")
 	if err != nil {
 		t.Fatalf("parseChecksumFile() unexpected error for * prefix: %v", err)
 	}
-	if checksum != "abc123" {
-		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc123")
+	if checksum != "abc1230000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc1230000000000000000000000000000000000000000000000000000000000")
 	}
 }
 
 func TestParseChecksumFile_PathSuffix(t *testing.T) {
-	content := []byte("abc123  dist/myfile.tar.gz\n")
+	content := []byte("abc1230000000000000000000000000000000000000000000000000000000000  dist/myfile.tar.gz\n")
 	checksum, err := parseChecksumFile(content, "myfile.tar.gz")
 	if err != nil {
 		t.Fatalf("parseChecksumFile() unexpected error for path suffix match: %v", err)
 	}
-	if checksum != "abc123" {
-		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc123")
+	if checksum != "abc1230000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "abc1230000000000000000000000000000000000000000000000000000000000")
 	}
 }
 
@@ -126,14 +126,11 @@ func TestParseChecksumFile_Empty(t *testing.T) {
 	}
 }
 
-func TestParseChecksumFile_SkipsShortLines(t *testing.T) {
-	content := []byte("abc123\nfull-hash  myfile.tar.gz\n")
-	checksum, err := parseChecksumFile(content, "myfile.tar.gz")
-	if err != nil {
-		t.Fatalf("parseChecksumFile() unexpected error: %v", err)
-	}
-	if checksum != "full-hash" {
-		t.Errorf("parseChecksumFile() = %q, want %q", checksum, "full-hash")
+func TestParseChecksumFile_ErrorsOnInvalidLines(t *testing.T) {
+	content := []byte("abc123\nabc1230000000000000000000000000000000000000000000000000000000000  myfile.tar.gz\n")
+	_, err := parseChecksumFile(content, "myfile.tar.gz")
+	if err == nil {
+		t.Error("parseChecksumFile() expected error for invalid line, got nil")
 	}
 }
 
@@ -170,7 +167,7 @@ func makeToolWithExt(platforms []string, extensions map[string]string, downloadT
 func TestFetchChecksums_FromChecksumFile(t *testing.T) {
 	tool := makeTool([]string{"linux/amd64"})
 	// Default template renders to "mytool_linux_amd64"; checksum file lists it.
-	checksumFile := []byte("abc123  mytool_linux_amd64\n")
+	checksumFile := []byte("abc1230000000000000000000000000000000000000000000000000000000000  mytool_linux_amd64\n")
 
 	mockHTTPDispatch(t, func(req *http.Request) *http.Response {
 		var body []byte
@@ -186,14 +183,14 @@ func TestFetchChecksums_FromChecksumFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchChecksums() unexpected error: %v", err)
 	}
-	if got["linux/amd64"] != "abc123" {
-		t.Errorf("FetchChecksums() linux/amd64 = %q, want %q", got["linux/amd64"], "abc123")
+	if got["linux/amd64"] != "abc1230000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("FetchChecksums() linux/amd64 = %q, want %q", got["linux/amd64"], "abc1230000000000000000000000000000000000000000000000000000000000")
 	}
 }
 
 func TestFetchChecksums_MultiplePlatforms_FromChecksumFile(t *testing.T) {
 	tool := makeTool([]string{"linux/amd64", "darwin/arm64"})
-	checksumFile := []byte("aaa111  mytool_linux_amd64\nbbb222  mytool_darwin_arm64\n")
+	checksumFile := []byte("aaa1110000000000000000000000000000000000000000000000000000000000  mytool_linux_amd64\nbbb2220000000000000000000000000000000000000000000000000000000000  mytool_darwin_arm64\n")
 
 	mockHTTPDispatch(t, func(req *http.Request) *http.Response {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(checksumFile)), Header: make(http.Header)}
@@ -203,18 +200,18 @@ func TestFetchChecksums_MultiplePlatforms_FromChecksumFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchChecksums() unexpected error: %v", err)
 	}
-	if got["linux/amd64"] != "aaa111" {
-		t.Errorf("linux/amd64 = %q, want %q", got["linux/amd64"], "aaa111")
+	if got["linux/amd64"] != "aaa1110000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("linux/amd64 = %q, want %q", got["linux/amd64"], "aaa1110000000000000000000000000000000000000000000000000000000000")
 	}
-	if got["darwin/arm64"] != "bbb222" {
-		t.Errorf("darwin/arm64 = %q, want %q", got["darwin/arm64"], "bbb222")
+	if got["darwin/arm64"] != "bbb2220000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("darwin/arm64 = %q, want %q", got["darwin/arm64"], "bbb2220000000000000000000000000000000000000000000000000000000000")
 	}
 }
 
 func TestFetchChecksums_ChecksumFileMissingEntry_FallsBackToIndividual(t *testing.T) {
 	tool := makeTool([]string{"linux/amd64"})
 	// Checksum file does not contain our asset — triggers fallback.
-	checksumFile := []byte("abc123  unrelated_tool\n")
+	checksumFile := []byte("abc1230000000000000000000000000000000000000000000000000000000000  unrelated_tool\n")
 	assetContent := []byte("binary data")
 	assetChecksum := sha256Hex(assetContent)
 
@@ -296,7 +293,7 @@ func TestFetchChecksums_PerOSExtension_FromChecksumFile(t *testing.T) {
 		map[string]string{"linux": "tar.gz", "darwin": "zip", "default": "tar.gz"},
 		"{name}_{os}_{arch}.{ext}",
 	)
-	checksumFile := []byte("aaa111  mytool_linux_amd64.tar.gz\nbbb222  mytool_darwin_arm64.zip\n")
+	checksumFile := []byte("aaa1110000000000000000000000000000000000000000000000000000000000  mytool_linux_amd64.tar.gz\nbbb2220000000000000000000000000000000000000000000000000000000000  mytool_darwin_arm64.zip\n")
 
 	mockHTTPDispatch(t, func(req *http.Request) *http.Response {
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(bytes.NewReader(checksumFile)), Header: make(http.Header)}
@@ -306,11 +303,11 @@ func TestFetchChecksums_PerOSExtension_FromChecksumFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FetchChecksums() unexpected error: %v", err)
 	}
-	if got["linux/amd64"] != "aaa111" {
-		t.Errorf("linux/amd64 = %q, want %q", got["linux/amd64"], "aaa111")
+	if got["linux/amd64"] != "aaa1110000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("linux/amd64 = %q, want %q", got["linux/amd64"], "aaa1110000000000000000000000000000000000000000000000000000000000")
 	}
-	if got["darwin/arm64"] != "bbb222" {
-		t.Errorf("darwin/arm64 = %q, want %q", got["darwin/arm64"], "bbb222")
+	if got["darwin/arm64"] != "bbb2220000000000000000000000000000000000000000000000000000000000" {
+		t.Errorf("darwin/arm64 = %q, want %q", got["darwin/arm64"], "bbb2220000000000000000000000000000000000000000000000000000000000")
 	}
 }
 
