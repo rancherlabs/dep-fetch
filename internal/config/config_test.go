@@ -127,6 +127,46 @@ func TestToolExt(t *testing.T) {
 	})
 }
 
+func TestToolTagPrefix(t *testing.T) {
+	t.Run("defaults to v when release is nil", func(t *testing.T) {
+		tool := Tool{}
+		if got := tool.TagPrefix(); got != "v" {
+			t.Errorf("TagPrefix() = %q, want default %q", got, "v")
+		}
+	})
+
+	t.Run("defaults to v when tag_prefix is nil", func(t *testing.T) {
+		tool := Tool{Release: &ReleaseConfig{}}
+		if got := tool.TagPrefix(); got != "v" {
+			t.Errorf("TagPrefix() = %q, want default %q", got, "v")
+		}
+	})
+
+	t.Run("returns empty string when explicitly set to empty", func(t *testing.T) {
+		empty := ""
+		tool := Tool{Release: &ReleaseConfig{TagPrefix: &empty}}
+		if got := tool.TagPrefix(); got != "" {
+			t.Errorf("TagPrefix() = %q, want empty string", got)
+		}
+	})
+
+	t.Run("returns custom prefix for sub-packages", func(t *testing.T) {
+		prefix := "database/v"
+		tool := Tool{Release: &ReleaseConfig{TagPrefix: &prefix}}
+		if got := tool.TagPrefix(); got != "database/v" {
+			t.Errorf("TagPrefix() = %q, want %q", got, "database/v")
+		}
+	})
+
+	t.Run("returns custom prefix without v", func(t *testing.T) {
+		prefix := "api/"
+		tool := Tool{Release: &ReleaseConfig{TagPrefix: &prefix}}
+		if got := tool.TagPrefix(); got != "api/" {
+			t.Errorf("TagPrefix() = %q, want %q", got, "api/")
+		}
+	})
+}
+
 func TestLoad(t *testing.T) {
 	validYAML := `
 tools:

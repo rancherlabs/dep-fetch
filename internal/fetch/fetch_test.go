@@ -185,7 +185,8 @@ func TestResolveVersion_LatestCacheHit(t *testing.T) {
 
 func TestResolveVersion_LatestHTTP(t *testing.T) {
 	fs := memfs.New()
-	mockHTTP(t, 200, []byte(`{"tag_name":"v5.0.0"}`))
+	// Tool with default tag_prefix="v" will use list endpoint
+	mockHTTP(t, 200, []byte(`[{"tag_name":"v5.0.0","prerelease":false,"draft":false}]`))
 
 	tool := config.Tool{Name: "tool", Version: "latest", Source: "owner/repo"}
 	v, err := resolveVersion(fs, tool)

@@ -407,7 +407,7 @@ func resolveVersion(fs billy.Filesystem, t config.Tool) (string, error) {
 		return v, nil
 	}
 
-	v, err := gh.LatestRelease(t.Owner(), t.Repo())
+	v, err := gh.LatestRelease(t.Owner(), t.Repo(), t.TagPrefix())
 	if err != nil {
 		return "", err
 	}
