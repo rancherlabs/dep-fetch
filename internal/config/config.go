@@ -51,6 +51,7 @@ type Tool struct {
 }
 
 type ReleaseConfig struct {
+	TagPrefix        *string           `yaml:"tag_prefix,omitempty"` // filter releases by tag prefix; defaults to "v" if nil
 	DownloadTemplate string            `yaml:"download_template,omitempty"`
 	ChecksumTemplate string            `yaml:"checksum_template,omitempty"`
 	Extract          string            `yaml:"extract,omitempty"`    // path within archive to use as the binary; empty = asset is the binary
@@ -100,6 +101,17 @@ func (t *Tool) Ext(goos string) string {
 		return t.Release.Extensions["default"]
 	}
 	return ""
+}
+
+// TagPrefix returns the configured tag prefix for filtering releases.
+// Returns "v" by default (filters to semantic version tags like v1.2.3).
+// Returns empty string if explicitly configured to "" (no filtering).
+// Returns the configured prefix for monorepo sub-packages (e.g. "database/v").
+func (t *Tool) TagPrefix() string {
+	if t.Release != nil && t.Release.TagPrefix != nil {
+		return *t.Release.TagPrefix
+	}
+	return "v"
 }
 
 func splitSource(source string) (owner, repo string) {

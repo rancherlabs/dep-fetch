@@ -40,7 +40,7 @@ func TestLatestRelease_OK(t *testing.T) {
 	defer ts.Close()
 	withTestServer(t, ts)
 
-	tag, err := LatestRelease("owner", "repo")
+	tag, err := LatestRelease("owner", "repo", "")
 	if err != nil {
 		t.Fatalf("LatestRelease() unexpected error: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestLatestRelease_EmptyTag(t *testing.T) {
 	defer ts.Close()
 	withTestServer(t, ts)
 
-	_, err := LatestRelease("owner", "repo")
+	_, err := LatestRelease("owner", "repo", "")
 	if err == nil {
 		t.Error("LatestRelease() expected error for empty tag_name, got nil")
 	}
@@ -71,7 +71,7 @@ func TestLatestRelease_HTTP404(t *testing.T) {
 	defer ts.Close()
 	withTestServer(t, ts)
 
-	_, err := LatestRelease("owner", "repo")
+	_, err := LatestRelease("owner", "repo", "")
 	if err == nil {
 		t.Error("LatestRelease() expected error for HTTP 404, got nil")
 	}
@@ -86,7 +86,7 @@ func TestLatestRelease_InvalidJSON(t *testing.T) {
 	defer ts.Close()
 	withTestServer(t, ts)
 
-	_, err := LatestRelease("owner", "repo")
+	_, err := LatestRelease("owner", "repo", "")
 	if err == nil {
 		t.Error("LatestRelease() expected error for invalid JSON, got nil")
 	}
@@ -157,11 +157,122 @@ func TestGitHubTokenHeader(t *testing.T) {
 	defer ts.Close()
 	withTestServer(t, ts)
 
-	_, err := LatestRelease("owner", "repo")
+	_, err := LatestRelease("owner", "repo", "")
 	if err != nil {
 		t.Fatalf("LatestRelease() unexpected error: %v", err)
 	}
 	if gotAuth != "Bearer test-token-123" {
 		t.Errorf("Authorization header = %q, want %q", gotAuth, "Bearer test-token-123")
+	}
+}
+
+func TestLatestRelease_WithTagPrefix(t *testing.T) {
+	releases := []release{
+		{TagName: "v2.0.0", Prerelease: false, Draft: false},
+		{TagName: "v1.5.0", Prerelease: false, Draft: false},
+		{TagName: "stable", Prerelease: false, Draft: false},
+		{TagName: "v1.0.0", Prerelease: false, Draft: false},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/owner/repo/releases" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(releases); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	defer ts.Close()
+	withTestServer(t, ts)
+
+	tag, err := LatestRelease("owner", "repo", "v")
+	if err != nil {
+		t.Fatalf("LatestRelease() unexpected error: %v", err)
+	}
+	if tag != "v2.0.0" {
+		t.Errorf("LatestRelease() = %q, want %q", tag, "v2.0.0")
+	}
+}
+
+func TestLatestRelease_SubPackagePrefix(t *testing.T) {
+	releases := []release{
+		{TagName: "v1.0.0", Prerelease: false, Draft: false},
+		{TagName: "database/v2.5.0", Prerelease: false, Draft: false},
+		{TagName: "database/v2.0.0", Prerelease: false, Draft: false},
+		{TagName: "api/v1.0.0", Prerelease: false, Draft: false},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/owner/repo/releases" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(releases); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	defer ts.Close()
+	withTestServer(t, ts)
+
+	tag, err := LatestRelease("owner", "repo", "database/")
+	if err != nil {
+		t.Fatalf("LatestRelease() unexpected error: %v", err)
+	}
+	if tag != "database/v2.5.0" {
+		t.Errorf("LatestRelease() = %q, want %q", tag, "database/v2.5.0")
+	}
+}
+
+func TestLatestRelease_SkipsPrereleaseAndDraft(t *testing.T) {
+	releases := []release{
+		{TagName: "v2.0.0-beta", Prerelease: true, Draft: false},
+		{TagName: "v1.9.0", Prerelease: false, Draft: true},
+		{TagName: "v1.5.0", Prerelease: false, Draft: false},
+		{TagName: "v1.0.0", Prerelease: false, Draft: false},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/owner/repo/releases" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(releases); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	defer ts.Close()
+	withTestServer(t, ts)
+
+	tag, err := LatestRelease("owner", "repo", "v")
+	if err != nil {
+		t.Fatalf("LatestRelease() unexpected error: %v", err)
+	}
+	if tag != "v1.5.0" {
+		t.Errorf("LatestRelease() = %q, want %q (should skip prerelease and draft)", tag, "v1.5.0")
+	}
+}
+
+func TestLatestRelease_NoMatchingPrefix(t *testing.T) {
+	releases := []release{
+		{TagName: "stable", Prerelease: false, Draft: false},
+		{TagName: "2024-06-11", Prerelease: false, Draft: false},
+	}
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/owner/repo/releases" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewEncoder(w).Encode(releases); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+	defer ts.Close()
+	withTestServer(t, ts)
+
+	_, err := LatestRelease("owner", "repo", "v")
+	if err == nil {
+		t.Error("LatestRelease() expected error for no matching prefix, got nil")
 	}
 }

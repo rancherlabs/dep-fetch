@@ -43,7 +43,7 @@ If version is "latest", the latest release tag is fetched from GitHub.`,
 		}
 
 		if newVersion == "latest" {
-			v, err := gh.LatestRelease(targetTool.Owner(), targetTool.Repo())
+			v, err := gh.LatestRelease(targetTool.Owner(), targetTool.Repo(), targetTool.TagPrefix())
 			if err != nil {
 				return fmt.Errorf("fetching latest release for %s/%s: %w", targetTool.Owner(), targetTool.Repo(), err)
 			}

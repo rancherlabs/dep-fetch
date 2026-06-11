@@ -15,26 +15,59 @@ var (
 )
 
 type release struct {
-	TagName string `json:"tag_name"`
+	TagName    string `json:"tag_name"`
+	Prerelease bool   `json:"prerelease"`
+	Draft      bool   `json:"draft"`
 }
 
 // LatestRelease returns the tag name of the latest release for owner/repo.
-func LatestRelease(owner, repo string) (string, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", apiBase, owner, repo)
+// If tagPrefix is empty, returns any release (uses GitHub's /releases/latest API).
+// If tagPrefix is non-empty, lists releases and returns the first matching tag.
+func LatestRelease(owner, repo, tagPrefix string) (string, error) {
+	// Fast path: use GitHub's /releases/latest endpoint when no prefix filtering needed
+	if tagPrefix == "" {
+		url := fmt.Sprintf("%s/repos/%s/%s/releases/latest", apiBase, owner, repo)
+		body, err := doGet(url, "application/vnd.github+json")
+		if err != nil {
+			return "", err
+		}
+		defer body.Close() //nolint:errcheck // read-only response body; close error is not actionable
+
+		var r release
+		if err := json.NewDecoder(body).Decode(&r); err != nil {
+			return "", fmt.Errorf("decoding latest release response for %s/%s: %w", owner, repo, err)
+		}
+		if r.TagName == "" {
+			return "", fmt.Errorf("no tag found in latest release for %s/%s", owner, repo)
+		}
+		return r.TagName, nil
+	}
+
+	// Prefix filtering: list releases and find the first match
+	url := fmt.Sprintf("%s/repos/%s/%s/releases?per_page=100", apiBase, owner, repo)
 	body, err := doGet(url, "application/vnd.github+json")
 	if err != nil {
 		return "", err
 	}
 	defer body.Close() //nolint:errcheck // read-only response body; close error is not actionable
 
-	var r release
-	if err := json.NewDecoder(body).Decode(&r); err != nil {
-		return "", fmt.Errorf("decoding latest release response for %s/%s: %w", owner, repo, err)
+	var releases []release
+	if err := json.NewDecoder(body).Decode(&releases); err != nil {
+		return "", fmt.Errorf("decoding releases list for %s/%s: %w", owner, repo, err)
 	}
-	if r.TagName == "" {
-		return "", fmt.Errorf("no tag found in latest release for %s/%s", owner, repo)
+
+	for _, r := range releases {
+		// Skip drafts and prereleases
+		if r.Draft || r.Prerelease {
+			continue
+		}
+		// Check tag prefix
+		if strings.HasPrefix(r.TagName, tagPrefix) && r.TagName != "" {
+			return r.TagName, nil
+		}
 	}
-	return r.TagName, nil
+
+	return "", fmt.Errorf("no release found with tag prefix %q for %s/%s", tagPrefix, owner, repo)
 }
 
 // DownloadAsset downloads the release asset at assetURL and writes it to w.
