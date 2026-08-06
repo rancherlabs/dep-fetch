@@ -24,6 +24,13 @@
 # Example usage (latest version — convenient for local/dev workflows):
 #
 #     - uses: rancherlabs/dep-fetch/actions/sync-deps@main
+#
+# Example usage (with working-directory for centralized automation workflows):
+#
+#     - uses: rancherlabs/dep-fetch/actions/sync-deps@v0.1.0
+#       with:
+#         version: v0.1.0
+#         working-directory: ./feature-branch-checkout
 
 name: sync-deps
 description: >
@@ -60,6 +67,14 @@ inputs:
       dependencies.
     required: false
     default: "false"
+
+  working-directory:
+    description: >
+      Working directory from which to run dep-fetch. When not set, runs in the
+      current directory. Useful when the action is invoked from a centralized
+      automation branch but needs to operate on a different repository context.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -171,7 +186,12 @@ runs:
         CONFIG:     ${{ inputs.config }}
         DEP_FETCH_BIN_DIR:    ${{ inputs.bin-dir }}
         DEP_FETCH_SKIP_CACHE: ${{ inputs.skip-cache }}
+        WORKING_DIR: ${{ inputs.working-directory }}
       run: |
+        if [[ -n "${WORKING_DIR}" ]]; then
+          cd "${WORKING_DIR}"
+        fi
+
         ARGS=()
 
         if [[ -n "${CONFIG}" ]]; then
@@ -184,6 +204,11 @@ runs:
       shell: bash
       env:
         BIN_DIR: ${{ inputs.bin-dir }}
+        WORKING_DIR: ${{ inputs.working-directory }}
       run: |
+        if [[ -n "${WORKING_DIR}" ]]; then
+          cd "${WORKING_DIR}"
+        fi
+
         ABS_BIN_DIR="$(realpath "${BIN_DIR}")"
         echo "${ABS_BIN_DIR}" >> "${GITHUB_PATH}"
