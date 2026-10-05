@@ -3,7 +3,7 @@ module github.com/rancherlabs/dep-fetch
 go 1.26.0
 
 require (
-	github.com/go-git/go-billy/v5 v5.9.1
+	github.com/go-git/go-billy/v5 v5.9.2
 	github.com/spf13/cobra v1.10.2
 	go.yaml.in/yaml/v3 v3.0.5
 )
