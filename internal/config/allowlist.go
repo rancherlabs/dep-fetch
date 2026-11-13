@@ -13,6 +13,7 @@ var releaseChecksumAllowlist = []allowlistEntry{
 	{"rancher/dep-fetch", false},
 	{"rancher/charts-build-scripts", true},
 	{"rancher/ob-charts-tool", true},
+	{"rancher/orbs-automation", true},
 }
 
 func inReleaseChecksumAllowlist(source string) bool {
