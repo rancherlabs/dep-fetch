@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-billy/v5"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const (
